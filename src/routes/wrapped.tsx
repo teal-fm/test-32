@@ -129,7 +129,7 @@ function AnimatedNumber({
   const margin = useResponsiveMargin();
   const isInView = useInView(ref, {
     once: true,
-    margin,
+    margin: margin as any,
   });
 
   return (
@@ -175,7 +175,7 @@ function FadeUpSection({
   const margin = useResponsiveMargin();
   const isInView = useInView(ref, {
     once: true,
-    margin,
+    margin: margin as any,
   });
 
   return (
@@ -207,6 +207,73 @@ function ParallaxBlob({
   return <motion.div className={className} style={{ y }} />;
 }
 
+function FloatingArtistBubble({
+  artist,
+  idx,
+  xPercent,
+  yPercent,
+  sizeClass,
+}: {
+  artist: WrappedData["top_artists"][0];
+  idx: number;
+  xPercent: number;
+  yPercent: number;
+  sizeClass: string;
+}) {
+  const { scrollY } = useScroll();
+  // different parallax speeds based on position - bubbles closer to edges move faster
+  const parallaxSpeed = 0.15 + (Math.abs(xPercent - 50) / 100) * 0.2;
+  const yOffset = useTransform(scrollY, [0, 1500], [0, -150 * parallaxSpeed]);
+
+  return (
+    <motion.div
+      className={`absolute ${sizeClass}`}
+      style={{
+        left: `${xPercent}%`,
+        top: `${yPercent}%`,
+        x: "-50%",
+        y: useTransform(yOffset, (v) => `calc(-50% + ${v}px)`),
+      }}
+      initial={{ opacity: 0, scale: 0, rotate: -10 }}
+      whileInView={{ opacity: 1, scale: 1, rotate: 0 }}
+      viewport={{ once: true, margin: "00px" }}
+      transition={{
+        duration: 0.7,
+        delay: idx * 0.1,
+        ease: [0.34, 1.26, 0.64, 1],
+      }}
+      whileHover={{
+        scale: 1.2,
+        rotate: 5,
+        zIndex: 10,
+        transition: { duration: 0.2 },
+      }}
+    >
+      {artist.image_url ? (
+        <div className="relative w-full h-full overflow-clip rounded-full border-2 border-white/30 shadow-xl hover:shadow-2xl transition-shadow">
+          <img
+            src={artist.image_url}
+            alt={artist.name}
+            className="w-full h-full object-cover"
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 hover:opacity-100 transition-opacity duration-300" />
+          <div className="absolute inset-0 flex items-end justify-center pb-1 sm:pb-2 opacity-0 hover:opacity-100 transition-opacity duration-300">
+            <span className="text-white text-[0.6rem] sm:text-xs font-medium drop-shadow-lg px-1 text-center leading-tight">
+              {artist.name}
+            </span>
+          </div>
+        </div>
+      ) : (
+        <div className="w-full h-full rounded-full bg-gradient-to-br from-[#ff6b6b]/30 to-[#ff9500]/30 border-2 border-white/30 flex items-center justify-center backdrop-blur-sm">
+          <div className="text-white/80 text-[0.6rem] sm:text-xs font-medium text-center px-1 sm:px-2 leading-tight">
+            {artist.name.split(" ")[0]}
+          </div>
+        </div>
+      )}
+    </motion.div>
+  );
+}
+
 function WrappedPage() {
   const [data, setData] = useState<WrappedData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -217,7 +284,7 @@ function WrappedPage() {
       try {
         const did =
           localStorage.getItem("user_did") ||
-          "did:plc:k644h4rq5bjfzcetgsa6tuby";
+          "did:plc:rnpkyqnmsw4ipey6eotbdnnf";
         const year = new Date().getFullYear();
         const response = await fetch(
           `http://localhost:3001/api/wrapped/${year}?did=${did}`,
@@ -256,10 +323,10 @@ function WrappedPage() {
   return (
     <div className="bg-[#0a0a0a] text-white overflow-x-hidden">
       {/* Hero - Full bleed year */}
-      <section className="min-h-screen flex items-center justify-center relative overflow-hidden">
+      <section className="min-h-screen flex items-center justify-center relative overflow-visible">
         <div className="px-8 max-w-[100vw] relative">
           <motion.h1
-            className="text-[16rem] md:text-[18rem] lg:text-[24rem] xl:text-[32rem] font-black leading-none bg-gradient-to-br from-[#00d9ff] via-[#0066ff] to-[#9900ff] bg-clip-text text-transparent text-center relative z-0"
+            className="text-[16rem] md:text-[18rem] lg:text-[24rem] xl:text-[32rem] font-black leading-none bg-teal-700 bg-clip-text text-transparent text-center relative z-0"
             initial={{ opacity: 0, scale: 0.8 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{
@@ -285,7 +352,7 @@ function WrappedPage() {
       </section>
 
       {/* Hours Stat - Big Impact */}
-      <section className="min-h-screen flex items-center justify-center px-8 relative overflow-hidden">
+      <section className="min-h-screen flex items-center justify-center px-8 relative overflow-visible">
         {/* Subtle simplex noise */}
         <div className="absolute inset-0 opacity-25">
           <SimplexNoise
@@ -306,7 +373,7 @@ function WrappedPage() {
           </FadeUpSection>
           <FadeUpSection delay={0.2}>
             <div className="mb-8">
-              <span className="text-[8rem] md:text-[12rem] lg:text-[16rem] font-bold leading-none bg-gradient-to-r from-[#00ffaa] to-[#00ff66] bg-clip-text text-transparent">
+              <span className="text-[4rem] sm:text-[6rem] md:text-[10rem] lg:text-[14rem] font-bold leading-none bg-gradient-to-r from-[#00ffaa] to-[#00ff66] bg-clip-text text-transparent">
                 <AnimatedNumber
                   value={Math.round(data.total_hours)}
                   duration={2.5}
@@ -317,7 +384,7 @@ function WrappedPage() {
           <FadeUpSection delay={0.4}>
             <StaggeredText
               text="hours of music"
-              className="text-4xl md:text-6xl text-white/80"
+              className="text-2xl sm:text-3xl md:text-5xl lg:text-6xl text-white/80"
               offset={30}
               duration={0.15}
               staggerDelay={0.12}
@@ -326,7 +393,7 @@ function WrappedPage() {
             />
           </FadeUpSection>
           <FadeUpSection delay={0.6}>
-            <p className="text-lg md:text-xl text-white/40 mt-6 max-w-md">
+            <p className="text-base sm:text-lg md:text-xl text-white/40 mt-6 max-w-md">
               That's {Math.round(data.total_hours / 24)} days straight. You
               could've walked to Tokyo!
             </p>
@@ -335,7 +402,7 @@ function WrappedPage() {
       </section>
 
       {/* Top Artist - Editorial Layout */}
-      <section className="min-h-screen flex items-center px-8 md:px-16 lg:px-24 relative overflow-hidden">
+      <section className="min-h-screen flex items-center px-8 md:px-16 lg:px-24 relative overflow-visible">
         {/* Very subtle metaballs */}
         <div className="absolute inset-0 opacity-30">
           <Metaballs
@@ -350,20 +417,20 @@ function WrappedPage() {
           speed={0.4}
         />
         <div className="max-w-7xl mx-auto w-full relative z-10">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-16 items-center">
             <FadeUpSection>
               <div>
-                <p className="text-xs uppercase tracking-[0.3em] text-white/40 mb-8">
+                <p className="text-xs uppercase tracking-[0.3em] text-white/40 mb-6 lg:mb-8">
                   Your Top Artist
                 </p>
                 <img
                   src={data.top_artists[0]?.image_url}
                   alt={data.top_artists[0]?.name}
-                  className="mb-8 rounded-2xl border border-white/10 shadow-lg w-4/5 brightness-90"
+                  className="mb-6 lg:mb-8 rounded-2xl border border-white/10 shadow-lg w-full max-w-sm lg:w-4/5 brightness-90"
                 />
                 <StaggeredText
                   text={data.top_artists[0]?.name || "Unknown"}
-                  className="text-7xl md:text-8xl lg:text-9xl font-bold text-white leading-[0.9] mb-12"
+                  className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl xl:text-8xl font-bold text-white leading-[0.9] mb-8 lg:mb-12"
                   offset={40}
                   delay={0.2}
                   duration={0.2}
@@ -373,33 +440,35 @@ function WrappedPage() {
                 />
               </div>
             </FadeUpSection>
-            <div className="space-y-8">
+            <div className="space-y-6 lg:space-y-8">
               <FadeUpSection delay={0.2}>
-                <div className="border-l-4 border-[#00d9ff] pl-8">
-                  <p className="text-6xl md:text-7xl font-bold bg-gradient-to-r from-[#00d9ff] to-[#0066ff] bg-clip-text text-transparent">
+                <div className="border-l-4 border-[#00d9ff] pl-6 lg:pl-8">
+                  <p className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold bg-gradient-to-r from-[#00d9ff] to-[#0066ff] bg-clip-text text-transparent">
                     <AnimatedNumber
                       value={Math.round(data.top_artists[0]?.hours || 0)}
                     />
                   </p>
-                  <p className="text-xl text-white/60 mt-2">hours played</p>
+                  <p className="text-lg sm:text-xl text-white/60 mt-2">
+                    hours played
+                  </p>
                 </div>
               </FadeUpSection>
               <FadeUpSection delay={0.3}>
-                <div className="border-l-4 border-[#ff0099] pl-8">
-                  <p className="text-6xl md:text-7xl font-bold bg-gradient-to-r from-[#ff0099] to-[#9900ff] bg-clip-text text-transparent">
+                <div className="border-l-4 border-[#ff0099] pl-6 lg:pl-8">
+                  <p className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold bg-gradient-to-r from-[#ff0099] to-[#9900ff] bg-clip-text text-transparent">
                     <AnimatedNumber value={data.top_artists[0]?.plays || 0} />
                   </p>
-                  <p className="text-xl text-white/60 mt-2">plays</p>
+                  <p className="text-lg sm:text-xl text-white/60 mt-2">plays</p>
                 </div>
               </FadeUpSection>
               <FadeUpSection delay={0.4}>
-                <div className="pl-8 pt-8 border-t border-white/10">
+                <div className="pl-6 lg:pl-8 pt-6 lg:pt-8 border-t border-white/10">
                   <p className="text-sm text-white/40 uppercase tracking-widest mb-3">
                     Most Played Track
                   </p>
                   <StaggeredText
                     text={data.top_artists[0]?.top_track || "Unknown"}
-                    className="text-2xl md:text-3xl text-white font-medium"
+                    className="text-xl sm:text-2xl md:text-3xl text-white font-medium"
                     offset={20}
                     delay={0.2}
                     duration={0.1}
@@ -441,8 +510,8 @@ function WrappedPage() {
         </div>
       </section>
 
-      {/* Discovery - Asymmetric */}
-      <section className="min-h-screen flex items-end pb-24 px-8 md:px-16 lg:px-24 relative overflow-hidden">
+      {/* Discovery - floating artist photos blob */}
+      <section className="min-h-screen flex items-center px-8 relative overflow-visible">
         {/* Gentle mesh gradient */}
         <div className="absolute inset-0 opacity-35">
           <MeshGradient
@@ -455,31 +524,165 @@ function WrappedPage() {
           className="absolute top-20 left-1/3 w-[28rem] h-[28rem] bg-[#00ffaa]/10 rounded-full blur-[100px]"
           speed={0.2}
         />
+
         <div className="max-w-7xl mx-auto w-full relative z-10">
-          <FadeUpSection>
-            <div className="max-w-3xl ml-auto">
-              <div className="flex items-baseline gap-8 mb-8">
-                <span className="text-[10rem] md:text-[14rem] font-bold leading-none bg-gradient-to-br from-[#ff6b6b] to-[#ff9500] bg-clip-text text-transparent">
-                  <AnimatedNumber value={data.new_artists_count} duration={2} />
-                </span>
+          <div className="relative flex items-center justify-center min-h-[80vh]">
+            <div className="absolute inset-0 pointer-events-none">
+              {/* container needs defined height and relative positioning */}
+              {/* container with padding to prevent edge cutoff */}
+              <div className="relative h-screen sm:max-h-[1000px] lg:max-h-[1000px] w-full max-w-7xl mx-auto px-8 sm:px-12">
+                {data.top_artists.slice(0, 8).map((artist, idx) => {
+                  // create clusters in different regions of the screen
+                  const regions = [
+                    { x: 15, y: 20 }, // top left
+                    { x: 80, y: 15 }, // top right
+                    { x: 90, y: 35 }, // mid right
+                    { x: 55, y: 85 }, // bottom right
+                    { x: 25, y: 80 }, // bottom left
+                    { x: 10, y: 50 }, // mid left
+                    { x: 30, y: 23 }, // upper center
+                    { x: 90, y: 75 }, // lower center
+                  ];
+
+                  const base = regions[idx];
+                  // add random jitter within a small range
+                  const jitterX = Math.sin(idx * 2.3) * 8;
+                  const jitterY = Math.cos(idx * 1.7) * 8;
+
+                  const xPercent = base.x + jitterX;
+                  const yPercent = base.y + jitterY;
+
+                  // vary sizes slightly for more organic feel
+                  const sizeVariants = [
+                    "w-14 h-14",
+                    "w-16 h-16",
+                    "w-20 h-20",
+                    "w-18 h-18",
+                  ];
+                  const smSizeVariants = [
+                    "sm:w-20 sm:h-20",
+                    "sm:w-24 sm:h-24",
+                    "sm:w-28 sm:h-28",
+                    "sm:w-22 sm:h-22",
+                  ];
+                  const lgSizeVariants = [
+                    "lg:w-38 lg:h-38",
+                    "lg:w-42 lg:h-42",
+                    "lg:w-48 lg:h-48",
+                    "lg:w-30 lg:h-30",
+                  ];
+
+                  const sizeClass = `${sizeVariants[idx % 4]} ${smSizeVariants[idx % 4]} ${lgSizeVariants[idx % 4]}`;
+
+                  return (
+                    <FloatingArtistBubble
+                      key={artist.mb_id || idx}
+                      artist={artist}
+                      idx={idx}
+                      xPercent={xPercent}
+                      yPercent={yPercent}
+                      sizeClass={sizeClass}
+                    />
+                  );
+                })}
+              </div>
+            </div>
+            {/* Central stat */}
+            <FadeUpSection>
+              <div className="text-center relative z-20">
+                <p className="text-sm uppercase tracking-[0.3em] text-white/40 mb-8">
+                  Discovery
+                </p>
+                <div className="mb-8">
+                  <span className="text-[6rem] sm:text-[8rem] md:text-[12rem] lg:text-[14rem] font-bold leading-none bg-gradient-to-br from-[#ff6b6b] to-[#ff9500] bg-clip-text text-transparent">
+                    <AnimatedNumber
+                      value={data.new_artists_count}
+                      duration={2}
+                    />
+                  </span>
+                </div>
                 <div>
-                  <p className="text-3xl md:text-5xl text-white mb-3">
-                    new artists
+                  <p className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl text-white mb-3">
+                    new artists discovered
                   </p>
-                  <p className="text-lg text-white/40">discovered this year</p>
+                  <p className="text-lg sm:text-xl text-white/60 leading-relaxed max-w-2xl mx-auto">
+                    You're always hunting for something fresh. These are the
+                    faces behind those new sounds.
+                  </p>
                 </div>
               </div>
-              <p className="text-xl md:text-2xl text-white/60 leading-relaxed">
-                You're always hunting for something fresh. That's a lot of new
-                sounds.
+            </FadeUpSection>
+          </div>
+        </div>
+      </section>
+
+      {/* Repeat Behavior */}
+      <section className="max-h-screen flex items-center px-8 md:px-16 lg:px-24 py-32 relative overflow-visible">
+        <div className="absolute inset-0 opacity-30">
+          <MeshGradient
+            colors={["#ff0099", "#ff6b6b", "#00d9ff"]}
+            distortion={0.5}
+            speed={0.2}
+          />
+        </div>
+        <div className="max-w-7xl mx-auto w-full relative z-10">
+          <div className="grid grid-cols-1 lg:grid-cols-5 gap-16 items-center">
+            <div className="lg:col-span-3 relative">
+              <p className="text-xs uppercase tracking-[0.3em] text-white/40 mb-8">
+                track of your year
               </p>
+              <FadeUpSection>
+                <img
+                  src={`https://coverartarchive.org/release/${data.top_tracks[0]?.release_mb_id}/front-500.jpg`}
+                  className="-mb-12 sm:-mb-16 lg:-mb-18 rounded-2xl border border-white/10 shadow-lg w-full max-w-sm lg:max-w-md brightness-85 relative z-0"
+                />
+              </FadeUpSection>
+              <FadeUpSection delay={0.2}>
+                <StaggeredText
+                  text={data.top_tracks[0]?.title || "Unknown"}
+                  className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl xl:text-8xl 2xl:text-9xl font-bold text-white leading-none mb-6 lg:mb-8 text-shadow-md relative z-10"
+                  offset={40}
+                  delay={0.1}
+                  duration={0.2}
+                  staggerDelay={0.12}
+                  once={true}
+                  as="h2"
+                />
+              </FadeUpSection>
+              <FadeUpSection delay={0.4}>
+                <p className="text-lg sm:text-xl md:text-2xl lg:text-3xl text-white/60 mb-8 lg:mb-12">
+                  {data.top_tracks[0]?.artist}{" "}
+                  {data.top_tracks[0]?.release_name
+                    ? `· ${data.top_tracks[0].release_name}`
+                    : ""}
+                </p>
+              </FadeUpSection>
             </div>
-          </FadeUpSection>
+            <div className="lg:col-span-2">
+              <FadeUpSection delay={0.6}>
+                <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-6 lg:p-8 border border-white/10">
+                  <p className="text-[4rem] sm:text-[5rem] md:text-[6rem] lg:text-[7rem] xl:text-[8rem] font-bold leading-none bg-gradient-to-br from-[#ff0099] to-[#ff6b6b] bg-clip-text text-transparent mb-4">
+                    <AnimatedNumber
+                      value={data.top_tracks[0]?.plays || 0}
+                      duration={2}
+                    />
+                  </p>
+                  <p className="text-lg sm:text-xl text-white/70 mb-6">
+                    total plays
+                  </p>
+                  <p className="text-sm text-white/40 leading-relaxed">
+                    You really couldn't get enough of this one. It's your
+                    most-played track of the year.
+                  </p>
+                </div>
+              </FadeUpSection>
+            </div>
+          </div>
         </div>
       </section>
 
       {/* Top Tracks - Vertical List */}
-      <section className="min-h-screen flex items-center px-8 md:px-16 lg:px-24 py-24 relative overflow-hidden">
+      <section className="max-h-screen flex items-center px-8 md:px-16 lg:px-24 py-24 pb-32 relative overflow-visible">
         <div className="absolute inset-0 opacity-20">
           <SimplexNoise
             colors={["#00d9ff", "#9900ff"]}
@@ -497,17 +700,22 @@ function WrappedPage() {
               Your Top Tracks
             </p>
           </FadeUpSection>
-          <div className="space-y-12">
+          <div className="space-y-6">
             {data.top_tracks.slice(0, 5).map((item, idx) => (
               <FadeUpSection key={idx} delay={idx * 0.1}>
-                <div className="flex items-baseline gap-6 md:gap-12 border-b border-white/10 pb-6">
-                  <span className="text-5xl md:text-7xl font-bold text-white/20 min-w-[4rem]">
+                <div className="flex items-start gap-4 sm:gap-6 md:gap-8 border-b border-white/10 pb-6 relative">
+                  <p className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white z-20 pl-1 text-shadow-md min-w-[3rem] sm:min-w-[4rem]">
                     {idx + 1}
-                  </span>
-                  <div className="flex-1">
+                  </p>
+                  <img
+                    src={`https://coverartarchive.org/release/${item.release_mb_id}/front-500.jpg`}
+                    alt={item.title}
+                    className="w-13 h-13 sm:w-20 sm:h-20 rounded-lg object-cover shadow-md absolute brightness-80"
+                  />
+                  <div className="flex-1 min-w-0">
                     <StaggeredText
                       text={item.title}
-                      className="text-3xl md:text-5xl text-white font-medium mb-2"
+                      className="text-xl sm:text-2xl md:text-4xl lg:text-5xl text-white font-medium mb-2"
                       offset={20}
                       delay={0.1 + idx * 0.1}
                       duration={0.08}
@@ -515,12 +723,12 @@ function WrappedPage() {
                       once={true}
                       as="h3"
                     />
-                    <p className="text-lg md:text-xl text-white/50">
+                    <p className="text-base sm:text-lg md:text-xl text-white/50">
                       {item.artist}
                     </p>
                   </div>
                   <div className="text-right">
-                    <p className="text-3xl md:text-4xl font-bold bg-gradient-to-r from-[#00d9ff] to-[#9900ff] bg-clip-text text-transparent">
+                    <p className="text-2xl sm:text-3xl md:text-4xl font-bold">
                       <AnimatedNumber value={item.plays} duration={1.5} />
                     </p>
                     <p className="text-sm text-white/40 mt-1">plays</p>
@@ -533,7 +741,7 @@ function WrappedPage() {
       </section>
 
       {/* Listening Patterns - Weekday vs Weekend */}
-      <section className="min-h-screen flex items-center justify-center px-8 py-24 relative overflow-hidden">
+      <section className="min-h-screen flex items-center justify-center px-8 py-24 relative overflow-visible">
         <div className="absolute inset-0 opacity-25">
           <Metaballs
             colors={["#00ffaa", "#00d9ff"]}
@@ -553,39 +761,43 @@ function WrappedPage() {
             </p>
           </FadeUpSection>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 mb-20">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-16 mb-16 lg:mb-20">
             {/* Weekday */}
             <FadeUpSection delay={0.2}>
-              <div className="bg-white/5 backdrop-blur-sm rounded-3xl p-10 border border-white/10 aspect-video w-[400px] max-w-full">
+              <div className="bg-white/5 backdrop-blur-sm rounded-3xl p-6 lg:p-10 border border-white/10 w-full max-w-sm mx-auto lg:max-w-none">
                 <p className="text-sm uppercase tracking-wider text-white/40 mb-6">
                   Weekdays
                 </p>
-                <div className="mb-8">
-                  <p className="text-[5rem] md:text-[6rem] font-bold leading-none bg-gradient-to-r from-[#0066ff] to-[#00d9ff] bg-clip-text text-transparent mb-2">
+                <div className="mb-6 lg:mb-8">
+                  <p className="text-[3rem] sm:text-[4rem] md:text-[5rem] lg:text-[6rem] font-bold leading-none bg-gradient-to-r from-[#0066ff] to-[#00d9ff] bg-clip-text text-transparent mb-2">
                     <AnimatedNumber
-                      value={data.weekday_avg_hours}
+                      value={Number(data.weekday_avg_hours.toFixed(1))}
                       duration={2}
                     />
                   </p>
-                  <p className="text-2xl text-white/60">avg. hours per day</p>
+                  <p className="text-lg sm:text-xl lg:text-2xl text-white/60">
+                    avg. hours per day
+                  </p>
                 </div>
               </div>
             </FadeUpSection>
 
             {/* Weekend */}
             <FadeUpSection delay={0.4}>
-              <div className="bg-white/5 backdrop-blur-sm rounded-3xl p-10 border border-white/10  aspect-video w-[400px] max-w-full">
+              <div className="bg-white/5 backdrop-blur-sm rounded-3xl p-6 lg:p-10 border border-white/10 w-full max-w-sm mx-auto lg:max-w-none">
                 <p className="text-sm uppercase tracking-wider text-white/40 mb-6">
                   Weekends
                 </p>
-                <div className="mb-8">
-                  <p className="text-[5rem] md:text-[6rem] font-bold leading-none bg-gradient-to-r from-[#00ffaa] to-[#00ff66] bg-clip-text text-transparent mb-2">
+                <div className="mb-6 lg:mb-8">
+                  <p className="text-[3rem] sm:text-[4rem] md:text-[5rem] lg:text-[6rem] font-bold leading-none bg-gradient-to-r from-[#00ffaa] to-[#00ff66] bg-clip-text text-transparent mb-2">
                     <AnimatedNumber
-                      value={data.weekend_avg_hours}
+                      value={Number(data.weekend_avg_hours.toFixed(1))}
                       duration={2}
                     />
                   </p>
-                  <p className="text-2xl text-white/60">avg. hours per day</p>
+                  <p className="text-lg sm:text-xl lg:text-2xl text-white/60">
+                    avg. hours per day
+                  </p>
                 </div>
               </div>
             </FadeUpSection>
@@ -593,8 +805,8 @@ function WrappedPage() {
 
           <FadeUpSection delay={0.6}>
             <div className="text-center">
-              <p className="text-lg md:text-xl text-white/50 max-w-2xl mx-auto leading-relaxed">
-                {data.weekend_avg_hours > data.weekday_avg_hours ? (
+              <p className="text-base sm:text-lg md:text-xl text-white/50 max-w-2xl mx-auto leading-relaxed px-4">
+                {data.weekend_avg_hours + 1 > data.weekday_avg_hours ? (
                   <>
                     Weekends are when you really dig in.{" "}
                     {Math.round(
@@ -602,8 +814,18 @@ function WrappedPage() {
                         data.weekday_avg_hours) *
                         100,
                     )}
-                    % more listening time, and you're way more adventurous with
-                    what you play.
+                    % more listening time on average.
+                  </>
+                ) : data.weekend_avg_hours < data.weekday_avg_hours ? (
+                  <>
+                    Weekdays are when you really lock in, with{" "}
+                    {Math.round(
+                      Math.abs(
+                        (data.weekend_avg_hours - data.weekday_avg_hours) /
+                          data.weekday_avg_hours,
+                      ) * 100,
+                    )}
+                    % more listening time on average.
                   </>
                 ) : (
                   <>
@@ -617,71 +839,8 @@ function WrappedPage() {
         </div>
       </section>
 
-      {/* Repeat Behavior */}
-      <section className="min-h-screen flex items-center px-8 md:px-16 lg:px-24 relative overflow-hidden">
-        <div className="absolute inset-0 opacity-30">
-          <MeshGradient
-            colors={["#ff0099", "#ff6b6b", "#00d9ff"]}
-            distortion={0.5}
-            speed={0.2}
-          />
-        </div>
-        <div className="max-w-7xl mx-auto w-full relative z-10">
-          <div className="grid grid-cols-1 lg:grid-cols-5 gap-16 items-center">
-            <div className="lg:col-span-3 relative">
-              <p className="text-xs uppercase tracking-[0.3em] text-white/40 mb-8">
-                Most Obsessed Track
-              </p>
-              <FadeUpSection>
-                <img
-                  src={`https://coverartarchive.org/release/${data.top_tracks[0]?.release_mb_id}/front-500.jpg`}
-                  className="-mb-18 rounded-2xl border border-white/10 shadow-lg w-md max-w-full brightness-85 relative z-0"
-                />
-              </FadeUpSection>
-              <FadeUpSection delay={0.2}>
-                <StaggeredText
-                  text={data.top_tracks[0]?.title || "Unknown"}
-                  className="text-7xl md:text-8xl lg:text-9xl font-bold text-white leading-none mb-8 text-shadow-md relative z-10"
-                  offset={40}
-                  delay={0.1}
-                  duration={0.2}
-                  staggerDelay={0.12}
-                  once={true}
-                  as="h2"
-                />
-              </FadeUpSection>
-              <FadeUpSection delay={0.4}>
-                <p className="text-2xl md:text-3xl text-white/60 mb-12">
-                  {data.top_tracks[0]?.artist}{" "}
-                  {data.top_tracks[0]?.release_name
-                    ? `· ${data.top_tracks[0].release_name}`
-                    : ""}
-                </p>
-              </FadeUpSection>
-            </div>
-            <div className="lg:col-span-2">
-              <FadeUpSection delay={0.6}>
-                <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-8 border border-white/10">
-                  <p className="text-[6rem] md:text-[8rem] font-bold leading-none bg-gradient-to-br from-[#ff0099] to-[#ff6b6b] bg-clip-text text-transparent mb-4">
-                    <AnimatedNumber
-                      value={data.top_tracks[0]?.plays || 0}
-                      duration={2}
-                    />
-                  </p>
-                  <p className="text-xl text-white/70 mb-6">total plays</p>
-                  <p className="text-sm text-white/40 leading-relaxed">
-                    You really couldn't get enough of this one. It's your
-                    most-played track of the year.
-                  </p>
-                </div>
-              </FadeUpSection>
-            </div>
-          </div>
-        </div>
-      </section>
-
       {/* Listening Streaks */}
-      <section className="min-h-[200vh] relative overflow-hidden">
+      <section className="min-h-[200vh] relative overflow-visible">
         <div className="absolute inset-0 opacity-20">
           <SimplexNoise
             colors={["#00ff66", "#00ffaa"]}
@@ -701,7 +860,7 @@ function WrappedPage() {
                   Consistency
                 </p>
                 <div className="mb-8">
-                  <span className="text-[10rem] md:text-[14rem] font-bold leading-none bg-gradient-to-r from-[#00ff66] to-[#00ffaa] bg-clip-text text-transparent">
+                  <span className="text-[6rem] sm:text-[8rem] md:text-[10rem] lg:text-[12rem] xl:text-[14rem] font-bold leading-none bg-gradient-to-r from-[#00ff66] to-[#00ffaa] bg-clip-text text-transparent">
                     <AnimatedNumber
                       value={data.longest_streak}
                       duration={2.5}
@@ -710,7 +869,7 @@ function WrappedPage() {
                 </div>
                 <StaggeredText
                   text="day listening streak"
-                  className="text-4xl md:text-6xl text-white/80"
+                  className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl xl:text-6xl text-white/80"
                   offset={30}
                   delay={0.3}
                   duration={0.12}
@@ -718,7 +877,7 @@ function WrappedPage() {
                   once={true}
                   as="p"
                 />
-                <p className="text-xl text-white/40 mt-6">
+                <p className="text-lg sm:text-xl text-white/40 mt-6 px-4">
                   {data.longest_streak >= 60
                     ? `Some people meditate. You just hit play.`
                     : data.longest_streak >= 30
@@ -734,7 +893,7 @@ function WrappedPage() {
                   Your {data.year} Activity
                 </p>
                 {/* Desktop: horizontal layout */}
-                <div className="hidden md:block overflow-x-auto">
+                <div className="hidden lg:block overflow-x-auto">
                   <div className="inline-flex flex-col gap-1.5 min-w-full">
                     {/* Month labels */}
                     <div className="flex gap-1.5">
@@ -805,7 +964,7 @@ function WrappedPage() {
                   </div>
                 </div>
                 {/* Mobile: vertical scrolling layout */}
-                <div className="md:hidden overflow-x-auto flex justify-center">
+                <div className="lg:hidden overflow-x-auto flex justify-center">
                   <div className="inline-flex flex-row gap-1.5">
                     {/* Month labels column */}
                     <div className="flex flex-col gap-1.5">
@@ -892,9 +1051,9 @@ function WrappedPage() {
             </FadeUpSection>
 
             <FadeUpSection delay={0.6}>
-              <div className="grid grid-cols-2 gap-8 mt-12 max-w-4xl mx-auto">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 sm:gap-8 mt-12 max-w-4xl mx-auto">
                 <div className="text-center">
-                  <p className="text-4xl md:text-5xl font-bold text-white/80 mb-2">
+                  <p className="text-3xl sm:text-4xl md:text-5xl font-bold text-white/80 mb-2">
                     <AnimatedNumber value={data.days_active} duration={1.5} />
                   </p>
                   <p className="text-sm text-white/40 uppercase tracking-wider">
@@ -902,7 +1061,7 @@ function WrappedPage() {
                   </p>
                 </div>
                 <div className="text-center">
-                  <p className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-[#00ff66] to-[#00ffaa] bg-clip-text text-transparent mb-2">
+                  <p className="text-3xl sm:text-4xl md:text-5xl font-bold bg-gradient-to-r from-[#00ff66] to-[#00ffaa] bg-clip-text text-transparent mb-2">
                     <AnimatedNumber
                       value={data.longest_streak}
                       duration={1.5}
@@ -919,7 +1078,7 @@ function WrappedPage() {
       </section>
 
       {/* Top 3 Dominance */}
-      <section className="min-h-screen flex items-center justify-center px-8 py-24 relative overflow-hidden">
+      <section className="min-h-screen flex items-center justify-center px-8 py-24 relative overflow-visible">
         <div className="absolute inset-0 opacity-25">
           <SimplexNoise
             colors={["#9900ff", "#ff0099"]}
@@ -938,7 +1097,7 @@ function WrappedPage() {
                 The Big Three
               </p>
               <div className="flex justify-center items-baseline gap-6 mb-8">
-                <span className="text-[10rem] md:text-[14rem] font-bold leading-none bg-gradient-to-br from-[#9900ff] to-[#ff0099] bg-clip-text text-transparent">
+                <span className="text-[6rem] sm:text-[8rem] md:text-[10rem] lg:text-[12rem] xl:text-[14rem] font-bold leading-none bg-gradient-to-br from-[#9900ff] to-[#ff0099] bg-clip-text text-transparent">
                   <AnimatedNumber
                     value={Math.round(
                       (data.top_artists
@@ -952,32 +1111,32 @@ function WrappedPage() {
                   %
                 </span>
               </div>
-              <p className="text-2xl md:text-3xl text-white/70 max-w-2xl mx-auto leading-relaxed mb-12">
+              <p className="text-xl sm:text-2xl md:text-3xl text-white/70 max-w-2xl mx-auto leading-relaxed mb-8 lg:mb-12 px-4">
                 of your listening went to just three artists
               </p>
             </div>
           </FadeUpSection>
           <FadeUpSection delay={0.4}>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
               {data.top_artists.slice(0, 3).map((artist, idx) => (
                 <div
                   key={idx}
-                  className="bg-white/5 backdrop-blur-sm rounded-2xl overflow-hidden border border-white/10"
+                  className="bg-white/5 backdrop-blur-sm rounded-2xl overflow-visible border border-white/10"
                 >
                   {artist.image_url && (
-                    <div className="relative w-full aspect-square overflow-hidden">
+                    <div className="relative w-full aspect-square overflow-visible">
                       <img
                         src={artist.image_url}
                         alt={artist.name}
                         className="w-full h-full object-cover"
                       />
                       <div className="absolute inset-0 bg-gradient-to-t from-[#0a0a0a] via-[#0a0a0a]/60 to-transparent" />
-                      <div className="absolute top-4 left-4 text-6xl font-bold text-white/90">
+                      <div className="absolute top-4 left-4 text-4xl sm:text-5xl lg:text-6xl font-bold text-white/90">
                         {idx + 1}
                       </div>
                     </div>
                   )}
-                  <div className="p-8">
+                  <div className="p-6 lg:p-8">
                     {!artist.image_url && (
                       <div className="text-6xl md:text-7xl font-bold text-white/20 mb-4">
                         {idx + 1}
@@ -985,7 +1144,7 @@ function WrappedPage() {
                     )}
                     <StaggeredText
                       text={artist.name}
-                      className="text-2xl md:text-3xl font-bold text-white mb-4"
+                      className="text-xl sm:text-2xl lg:text-3xl font-bold text-white mb-4"
                       offset={20}
                       delay={0.4 + idx * 0.1}
                       duration={0.1}
@@ -996,7 +1155,7 @@ function WrappedPage() {
                     <div className="space-y-2">
                       <div className="flex justify-between items-baseline">
                         <span className="text-sm text-white/40">hours</span>
-                        <span className="text-xl font-bold bg-gradient-to-r from-[#9900ff] to-[#ff0099] bg-clip-text text-transparent">
+                        <span className="text-lg sm:text-xl font-bold bg-gradient-to-r from-[#9900ff] to-[#ff0099] bg-clip-text text-transparent">
                           <AnimatedNumber
                             value={Math.round(artist.hours)}
                             duration={1.5}
@@ -1005,7 +1164,7 @@ function WrappedPage() {
                       </div>
                       <div className="flex justify-between items-baseline">
                         <span className="text-sm text-white/40">plays</span>
-                        <span className="text-lg text-white/60">
+                        <span className="text-base sm:text-lg text-white/60">
                           <AnimatedNumber value={artist.plays} duration={1.5} />
                         </span>
                       </div>
@@ -1016,7 +1175,7 @@ function WrappedPage() {
             </div>
           </FadeUpSection>
           <FadeUpSection delay={0.8}>
-            <p className="text-lg text-white/50 text-center mt-12 max-w-2xl mx-auto">
+            <p className="text-base sm:text-lg text-white/50 text-center mt-8 lg:mt-12 max-w-2xl mx-auto px-4">
               {Math.round(
                 (data.top_artists
                   .slice(0, 3)
@@ -1032,7 +1191,7 @@ function WrappedPage() {
       </section>
 
       {/* Ending - Personal Moment */}
-      <section className="min-h-screen flex items-center justify-center px-8 relative overflow-hidden">
+      <section className="min-h-screen flex items-center justify-center px-8 relative overflow-visible">
         <div className="absolute inset-0 opacity-20">
           <MeshGradient
             colors={["#00d9ff", "#00ffaa", "#0066ff"]}
@@ -1049,7 +1208,7 @@ function WrappedPage() {
           <FadeUpSection delay={0.2}>
             <StaggeredText
               text={`${Math.round(data.total_hours)} hours.`}
-              className="text-5xl md:text-7xl text-white/90 mb-6 font-light"
+              className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl xl:text-7xl text-white/90 mb-6 font-light"
               offset={30}
               delay={0.1}
               duration={0.15}
@@ -1061,7 +1220,7 @@ function WrappedPage() {
           <FadeUpSection delay={0.4}>
             <StaggeredText
               text={`${data.total_plays} tracks played.`}
-              className="text-5xl md:text-7xl text-white/90 mb-6 font-light"
+              className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl xl:text-7xl text-white/90 mb-6 font-light"
               offset={30}
               delay={0.1}
               duration={0.15}
@@ -1073,7 +1232,7 @@ function WrappedPage() {
           <FadeUpSection delay={0.6}>
             <StaggeredText
               text="Endless discovery."
-              className="text-5xl md:text-7xl text-white/90 mb-16 font-light"
+              className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl xl:text-7xl text-white/90 mb-12 lg:mb-16 font-light"
               offset={30}
               delay={0.1}
               duration={0.15}
@@ -1083,7 +1242,7 @@ function WrappedPage() {
             />
           </FadeUpSection>
           <FadeUpSection delay={0.8}>
-            <p className="text-xl md:text-2xl text-white/50 leading-relaxed max-w-2xl mx-auto">
+            <p className="text-lg sm:text-xl md:text-2xl text-white/50 leading-relaxed max-w-2xl mx-auto px-4">
               Thanks for making 2025 unforgettable,
               <br />
               from <span className="font-hand">Matt</span> and{" "}
