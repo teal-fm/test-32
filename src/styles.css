@@ -1,0 +1,53 @@
+@import "tailwindcss";
+
+:root {
+  /* Design System Colors */
+  --bg-primary: #0a0a0a;
+  --bg-secondary: #1a1a2e;
+  --surface-glass: rgba(255, 255, 255, 0.08);
+  --border-glass: rgba(255, 255, 255, 0.12);
+
+  /* Accent Gradients */
+  --gradient-cyan-blue: linear-gradient(135deg, #00d9ff, #0066ff);
+  --gradient-magenta-purple: linear-gradient(135deg, #ff0099, #9900ff);
+  --gradient-teal-green: linear-gradient(135deg, #00ffaa, #00ff66);
+  --gradient-coral-orange: linear-gradient(135deg, #ff6b6b, #ff9500);
+}
+
+body {
+  @apply m-0;
+  font-family:
+    "DM Sans",
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    "Roboto",
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background: #0a0a0a;
+  color: white;
+}
+
+code {
+  font-family:
+    "SF Mono", "JetBrains Mono", source-code-pro, Menlo, Monaco, Consolas,
+    monospace;
+}
+
+/* Glassmorphism Card */
+.glass-card {
+  background: rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+  transition: all 0.4s cubic-bezier(0.33, 1, 0.68, 1);
+}
+
+.glass-card:hover {
+  background: rgba(255, 255, 255, 0.12);
+  box-shadow:
+    0 12px 48px rgba(0, 0, 0, 0.3),
+    0 0 24px rgba(0, 217, 255, 0.1);
+  transform: translateY(-2px);
+}

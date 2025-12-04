@@ -1,0 +1,23 @@
+[package]
+name = "teal-wrapped-api"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+axum = "0.7"
+tokio = { version = "1", features = ["full"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tower = "0.4"
+tower-http = { version = "0.5", features = ["cors", "trace"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+chrono = { version = "0.4", features = ["serde"] }
+reqwest = { version = "0.12", features = ["json"] }
+anyhow = "1"
+jacquard-common = "0.9"
+lexicon = { path = "../lexicon" }
+sqlx = { version = "0.9.0-alpha.1", features = ["runtime-tokio", "postgres", "macros", "migrate", "chrono", "uuid"] }
+serde_ipld_dagcbor = "0.6"
+repo-stream = "0.2.2"
+dotenvy = "0.15.7"

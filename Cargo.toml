@@ -1,0 +1,3 @@
+[workspace]
+members = ["api", "lexicon"]
+resolver = "2"
