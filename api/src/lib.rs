@@ -52,6 +52,12 @@ struct TopArtist {
     hours: f64,
     #[serde(skip_serializing_if = "Option::is_none")]
     mb_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    top_track: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    top_track_plays: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    top_track_duration_ms: Option<i32>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -137,11 +143,24 @@ async fn get_wrapped(
     let top_artists = stats
         .top_artists
         .into_iter()
-        .map(|(name, plays, hours, mb_id)| TopArtist {
-            name,
-            plays,
-            hours,
-            mb_id,
+        .map(|(name, plays, hours, mb_id)| {
+            let (top_track, top_track_plays, top_track_duration_ms) = stats
+                .top_track_per_artist
+                .get(&name)
+                .map(|(track, count, duration)| {
+                    (Some(track.clone()), Some(*count), Some(*duration))
+                })
+                .unwrap_or((None, None, None));
+
+            TopArtist {
+                name,
+                plays,
+                hours,
+                mb_id,
+                top_track,
+                top_track_plays,
+                top_track_duration_ms,
+            }
         })
         .collect();
 

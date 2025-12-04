@@ -15,7 +15,10 @@ interface WrappedData {
     name: string;
     plays: number;
     hours: number;
-    recording_mb_id?: string;
+    mb_id?: string;
+    top_track?: string;
+    top_track_plays?: number;
+    top_track_duration_ms?: number;
   }>;
   top_tracks: Array<{
     title: string;
@@ -35,7 +38,7 @@ interface WrappedData {
   weekend_avg_hours: number;
   longest_streak: number;
   days_active: number;
-  similar_users: Array<string>;
+  similar_users?: Array<string>;
 }
 
 export const Route = createFileRoute("/wrapped")({
@@ -301,10 +304,10 @@ function WrappedPage() {
               <FadeUpSection delay={0.4}>
                 <div className="pl-8 pt-8 border-t border-white/10">
                   <p className="text-sm text-white/40 uppercase tracking-widest mb-3">
-                    Top Track
+                    Most Played Track
                   </p>
                   <StaggeredText
-                    text={data.top_tracks[0]?.title || "Unknown"}
+                    text={data.top_artists[0]?.top_track || "Unknown"}
                     className="text-2xl md:text-3xl text-white font-medium"
                     offset={20}
                     delay={0.2}
@@ -313,6 +316,28 @@ function WrappedPage() {
                     once={true}
                     as="p"
                   />
+                  {data.top_artists[0]?.top_track_plays && (
+                    <div className="text-sm text-white/40 mt-2 space-y-1">
+                      <p>{data.top_artists[0].top_track_plays} plays</p>
+                      {data.top_artists[0].top_track_duration_ms && (
+                        <p>
+                          {Math.round(
+                            data.top_artists[0].top_track_duration_ms /
+                              1000 /
+                              60,
+                          )}
+                          :
+                          {String(
+                            Math.floor(
+                              (data.top_artists[0].top_track_duration_ms /
+                                1000) %
+                                60,
+                            ),
+                          ).padStart(2, "0")}
+                        </p>
+                      )}
+                    </div>
+                  )}
                 </div>
               </FadeUpSection>
             </div>

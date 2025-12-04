@@ -16,6 +16,7 @@ pub struct WrappedStats {
     pub total_hours: f64,
     pub top_artists: Vec<(String, u32, f64, Option<String>)>,
     pub top_tracks: Vec<((String, String), u32, TrackMetadata)>,
+    pub top_track_per_artist: HashMap<String, (String, u32, i32)>, // artist_name -> (track_title, play_count, duration_ms)
     pub new_artists_count: u32,
     pub daily_plays: HashMap<NaiveDate, u32>,
     pub weekday_avg_hours: f64,
@@ -228,10 +229,46 @@ pub async fn calculate_wrapped_stats(
         0.0
     };
 
+    // Get top track for each artist
+    let mut top_track_per_artist: HashMap<String, (String, u32, i32)> = HashMap::new();
+
+    // For each top artist, find their most played track
+    for (artist_name, _, _, _) in &top_artists {
+        let top_track_result = sqlx::query(
+            r#"
+            SELECT track_name, COUNT(*) as play_count, MAX(duration_ms) as duration_ms
+            FROM user_plays
+            WHERE user_did = $1
+              AND EXTRACT(YEAR FROM played_at) = $2
+              AND (artists->0)->>'artistName' = $3
+            GROUP BY track_name
+            ORDER BY play_count DESC
+            LIMIT 1
+            "#,
+        )
+        .bind(user_did)
+        .bind(year as i32)
+        .bind(artist_name)
+        .fetch_optional(pool)
+        .await?;
+
+        if let Some(row) = top_track_result {
+            let track_name: String = row.get("track_name");
+            let play_count: i64 = row.get("play_count");
+            let duration_ms: Option<i32> = row.get("duration_ms");
+            let duration = duration_ms.unwrap_or(210000);
+            top_track_per_artist.insert(
+                artist_name.clone(),
+                (track_name, play_count as u32, duration),
+            );
+        }
+    }
+
     Ok(WrappedStats {
         total_hours,
         top_artists,
         top_tracks,
+        top_track_per_artist,
         new_artists_count,
         daily_plays,
         weekday_avg_hours,

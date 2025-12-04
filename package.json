@@ -10,6 +10,7 @@
     "lex:build": "lex-cli generate"
   },
   "dependencies": {
+    "@atcute/lexicons": "^1.2.5",
     "@paper-design/shaders-react": "^0.0.67",
     "@tailwindcss/vite": "^4.0.6",
     "@tanstack/react-devtools": "^0.7.0",
