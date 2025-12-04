@@ -1,12 +1,42 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { motion, useInView, useScroll, useTransform } from "framer-motion";
-import { useRef } from "react";
+import { useRef, useEffect, useState } from "react";
 import {
   MeshGradient,
   Metaballs,
   SimplexNoise,
 } from "@paper-design/shaders-react";
 import StaggeredText from "@/components/StaggeredText";
+
+interface WrappedData {
+  year: number;
+  total_hours: number;
+  top_artists: Array<{
+    name: string;
+    plays: number;
+    hours: number;
+    recording_mb_id?: string;
+  }>;
+  top_tracks: Array<{
+    title: string;
+    artist: string;
+    plays: number;
+    recording_mb_id?: string;
+    release_name?: string;
+    release_mb_id?: string;
+  }>;
+  new_artists_count: number;
+  activity_graph: Array<{
+    date: string;
+    plays: number;
+    hours: number;
+  }>;
+  weekday_avg_hours: number;
+  weekend_avg_hours: number;
+  longest_streak: number;
+  days_active: number;
+  similar_users: Array<string>;
+}
 
 export const Route = createFileRoute("/wrapped")({
   component: WrappedPage,
@@ -94,6 +124,51 @@ function ParallaxBlob({
 }
 
 function WrappedPage() {
+  const [data, setData] = useState<WrappedData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const did =
+          localStorage.getItem("user_did") ||
+          "did:plc:k644h4rq5bjfzcetgsa6tuby";
+        const year = new Date().getFullYear();
+        const response = await fetch(
+          `http://localhost:3001/api/wrapped/${year}?did=${did}`,
+        );
+        if (!response.ok) {
+          throw new Error("Failed to fetch wrapped data");
+        }
+        const wrappedData = await response.json();
+        setData(wrappedData);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "An error occurred");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="bg-[#0a0a0a] text-white min-h-screen flex items-center justify-center">
+        <p className="text-white/60">Loading your wrapped data...</p>
+      </div>
+    );
+  }
+
+  if (error || !data) {
+    return (
+      <div className="bg-[#0a0a0a] text-white min-h-screen flex items-center justify-center">
+        <p className="text-white/60">{error || "No data available"}</p>
+      </div>
+    );
+  }
+
   return (
     <div className="bg-[#0a0a0a] text-white overflow-x-hidden">
       {/* Hero - Full bleed year */}
@@ -116,7 +191,7 @@ function WrappedPage() {
               ease: [0.34, 0.8, 0.64, 1],
             }}
           >
-            2025
+            {data.year}
           </motion.h1>
         </div>
       </section>
@@ -144,7 +219,10 @@ function WrappedPage() {
           <FadeUpSection delay={0.2}>
             <div className="mb-8">
               <span className="text-[8rem] md:text-[12rem] lg:text-[16rem] font-bold leading-none bg-gradient-to-r from-[#00ffaa] to-[#00ff66] bg-clip-text text-transparent">
-                <AnimatedNumber value={1247} duration={2.5} />
+                <AnimatedNumber
+                  value={Math.round(data.total_hours)}
+                  duration={2.5}
+                />
               </span>
             </div>
           </FadeUpSection>
@@ -190,7 +268,7 @@ function WrappedPage() {
                   Your Top Artist
                 </p>
                 <StaggeredText
-                  text="Radiohead"
+                  text={data.top_artists[0]?.name || "Unknown"}
                   className="text-7xl md:text-8xl lg:text-9xl font-bold text-white leading-[0.9] mb-12"
                   offset={40}
                   delay={0.2}
@@ -205,7 +283,9 @@ function WrappedPage() {
               <FadeUpSection delay={0.2}>
                 <div className="border-l-4 border-[#00d9ff] pl-8">
                   <p className="text-6xl md:text-7xl font-bold bg-gradient-to-r from-[#00d9ff] to-[#0066ff] bg-clip-text text-transparent">
-                    <AnimatedNumber value={487} />
+                    <AnimatedNumber
+                      value={Math.round(data.top_artists[0]?.hours || 0)}
+                    />
                   </p>
                   <p className="text-xl text-white/60 mt-2">hours played</p>
                 </div>
@@ -213,18 +293,18 @@ function WrappedPage() {
               <FadeUpSection delay={0.3}>
                 <div className="border-l-4 border-[#ff0099] pl-8">
                   <p className="text-6xl md:text-7xl font-bold bg-gradient-to-r from-[#ff0099] to-[#9900ff] bg-clip-text text-transparent">
-                    <AnimatedNumber value={23} />
+                    <AnimatedNumber value={data.top_artists[0]?.plays || 0} />
                   </p>
-                  <p className="text-xl text-white/60 mt-2">albums explored</p>
+                  <p className="text-xl text-white/60 mt-2">plays</p>
                 </div>
               </FadeUpSection>
               <FadeUpSection delay={0.4}>
                 <div className="pl-8 pt-8 border-t border-white/10">
                   <p className="text-sm text-white/40 uppercase tracking-widest mb-3">
-                    Most Played
+                    Top Track
                   </p>
                   <StaggeredText
-                    text="Weird Fishes / Arpeggi"
+                    text={data.top_tracks[0]?.title || "Unknown"}
                     className="text-2xl md:text-3xl text-white font-medium"
                     offset={20}
                     delay={0.2}
@@ -259,7 +339,7 @@ function WrappedPage() {
             <div className="max-w-3xl ml-auto">
               <div className="flex items-baseline gap-8 mb-8">
                 <span className="text-[10rem] md:text-[14rem] font-bold leading-none bg-gradient-to-br from-[#ff6b6b] to-[#ff9500] bg-clip-text text-transparent">
-                  <AnimatedNumber value={156} duration={2} />
+                  <AnimatedNumber value={data.new_artists_count} duration={2} />
                 </span>
                 <div>
                   <p className="text-3xl md:text-5xl text-white mb-3">
@@ -269,8 +349,8 @@ function WrappedPage() {
                 </div>
               </div>
               <p className="text-xl md:text-2xl text-white/60 leading-relaxed">
-                You're always hunting for something fresh. Your most adventurous
-                month? March, with 34 new discoveries.
+                You're always hunting for something fresh. That's a lot of new
+                sounds.
               </p>
             </div>
           </FadeUpSection>
@@ -297,41 +377,15 @@ function WrappedPage() {
             </p>
           </FadeUpSection>
           <div className="space-y-12">
-            {[
-              {
-                position: 1,
-                track: "Pyramid Song",
-                artist: "Radiohead",
-                plays: 284,
-              },
-              { position: 2, track: "Nude", artist: "Radiohead", plays: 267 },
-              {
-                position: 3,
-                track: "Let Down",
-                artist: "Radiohead",
-                plays: 241,
-              },
-              {
-                position: 4,
-                track: "Everything In Its Right Place",
-                artist: "Radiohead",
-                plays: 229,
-              },
-              {
-                position: 5,
-                track: "How to Disappear Completely",
-                artist: "Radiohead",
-                plays: 218,
-              },
-            ].map((item, idx) => (
-              <FadeUpSection key={item.position} delay={idx * 0.1}>
+            {data.top_tracks.slice(0, 5).map((item, idx) => (
+              <FadeUpSection key={idx} delay={idx * 0.1}>
                 <div className="flex items-baseline gap-6 md:gap-12 border-b border-white/10 pb-6">
                   <span className="text-5xl md:text-7xl font-bold text-white/20 min-w-[4rem]">
-                    {item.position}
+                    {idx + 1}
                   </span>
                   <div className="flex-1">
                     <StaggeredText
-                      text={item.track}
+                      text={item.title}
                       className="text-3xl md:text-5xl text-white font-medium mb-2"
                       offset={20}
                       delay={0.1 + idx * 0.1}
@@ -387,21 +441,20 @@ function WrappedPage() {
                 </p>
                 <div className="mb-8">
                   <p className="text-[5rem] md:text-[6rem] font-bold leading-none bg-gradient-to-r from-[#0066ff] to-[#00d9ff] bg-clip-text text-transparent mb-2">
-                    <AnimatedNumber value={3.2} duration={2} />
+                    <AnimatedNumber
+                      value={data.weekday_avg_hours}
+                      duration={2}
+                    />
                   </p>
                   <p className="text-2xl text-white/60">hours per day</p>
                 </div>
                 <div className="space-y-4 pt-6 border-t border-white/10">
                   <div className="flex justify-between items-baseline">
-                    <span className="text-white/50">Peak time</span>
-                    <span className="text-xl text-white font-medium">
-                      11 PM
+                    <span className="text-white/50">
+                      Average daily listening
                     </span>
-                  </div>
-                  <div className="flex justify-between items-baseline">
-                    <span className="text-white/50">Most common</span>
                     <span className="text-xl text-white font-medium">
-                      Focus music
+                      Consistent
                     </span>
                   </div>
                 </div>
@@ -416,19 +469,20 @@ function WrappedPage() {
                 </p>
                 <div className="mb-8">
                   <p className="text-[5rem] md:text-[6rem] font-bold leading-none bg-gradient-to-r from-[#00ffaa] to-[#00ff66] bg-clip-text text-transparent mb-2">
-                    <AnimatedNumber value={5.8} duration={2} />
+                    <AnimatedNumber
+                      value={data.weekend_avg_hours}
+                      duration={2}
+                    />
                   </p>
                   <p className="text-2xl text-white/60">hours per day</p>
                 </div>
                 <div className="space-y-4 pt-6 border-t border-white/10">
                   <div className="flex justify-between items-baseline">
-                    <span className="text-white/50">Peak time</span>
-                    <span className="text-xl text-white font-medium">2 PM</span>
-                  </div>
-                  <div className="flex justify-between items-baseline">
-                    <span className="text-white/50">Most common</span>
+                    <span className="text-white/50">
+                      Average daily listening
+                    </span>
                     <span className="text-xl text-white font-medium">
-                      Discovery mode
+                      More relaxed
                     </span>
                   </div>
                 </div>
@@ -524,7 +578,10 @@ function WrappedPage() {
                 </p>
                 <div className="mb-8">
                   <span className="text-[10rem] md:text-[14rem] font-bold leading-none bg-gradient-to-r from-[#00ff66] to-[#00ffaa] bg-clip-text text-transparent">
-                    <AnimatedNumber value={127} duration={2.5} />
+                    <AnimatedNumber
+                      value={data.longest_streak}
+                      duration={2.5}
+                    />
                   </span>
                 </div>
                 <StaggeredText
@@ -538,7 +595,8 @@ function WrappedPage() {
                   as="p"
                 />
                 <p className="text-xl text-white/40 mt-6">
-                  March 1st to July 5th without a single day off
+                  You listened every single day for {data.longest_streak}{" "}
+                  consecutive days
                 </p>
               </div>
             </FadeUpSection>
@@ -707,7 +765,7 @@ function WrappedPage() {
               <div className="grid grid-cols-3 gap-8 mt-12 max-w-4xl mx-auto">
                 <div className="text-center">
                   <p className="text-4xl md:text-5xl font-bold text-white/80 mb-2">
-                    <AnimatedNumber value={312} duration={1.5} />
+                    <AnimatedNumber value={data.days_active} duration={1.5} />
                   </p>
                   <p className="text-sm text-white/40 uppercase tracking-wider">
                     days active
@@ -715,7 +773,10 @@ function WrappedPage() {
                 </div>
                 <div className="text-center">
                   <p className="text-4xl md:text-5xl font-bold text-white/80 mb-2">
-                    <AnimatedNumber value={53} duration={1.5} />
+                    <AnimatedNumber
+                      value={365 - data.days_active}
+                      duration={1.5}
+                    />
                   </p>
                   <p className="text-sm text-white/40 uppercase tracking-wider">
                     days off
@@ -723,7 +784,10 @@ function WrappedPage() {
                 </div>
                 <div className="text-center">
                   <p className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-[#00ff66] to-[#00ffaa] bg-clip-text text-transparent mb-2">
-                    <AnimatedNumber value={127} duration={1.5} />
+                    <AnimatedNumber
+                      value={data.longest_streak}
+                      duration={1.5}
+                    />
                   </p>
                   <p className="text-sm text-white/40 uppercase tracking-wider">
                     longest streak
@@ -805,12 +869,12 @@ function WrappedPage() {
         <div className="max-w-3xl mx-auto text-center relative z-10">
           <FadeUpSection>
             <p className="text-sm uppercase tracking-[0.3em] text-white/40 mb-12">
-              Your 2025
+              Your {data.year}
             </p>
           </FadeUpSection>
           <FadeUpSection delay={0.2}>
             <StaggeredText
-              text="1,247 hours."
+              text={`${Math.round(data.total_hours)} hours.`}
               className="text-5xl md:text-7xl text-white/90 mb-6 font-light"
               offset={30}
               delay={0.1}
@@ -822,7 +886,7 @@ function WrappedPage() {
           </FadeUpSection>
           <FadeUpSection delay={0.4}>
             <StaggeredText
-              text="156 new artists."
+              text={`${data.new_artists_count} new artists.`}
               className="text-5xl md:text-7xl text-white/90 mb-6 font-light"
               offset={30}
               delay={0.1}
