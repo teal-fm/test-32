@@ -1,4 +1,15 @@
+/* mustika flower font at /fonts/Mustika Flower.otf */
+@font-face {
+  font-family: "Mustika Flower";
+  src: url("/fonts/Mustika Flower.otf") format("opentype");
+  font-weight: normal;
+}
+
 @import "tailwindcss";
+
+@theme {
+  --font-hand: "Mustika Flower", cursive;
+}
 
 :root {
   /* Design System Colors */

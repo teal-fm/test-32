@@ -6,6 +6,37 @@ use std::io::Cursor;
 
 const PLAY_COLLECTION: &str = "fm.teal.alpha.feed.play";
 
+fn extract_artists_from_play(play: &Play) -> (Vec<String>, Option<Vec<String>>) {
+    // Handle new format with artists array
+    if let Some(artists) = play.artists.as_ref() {
+        let names: Vec<String> = artists
+            .iter()
+            .map(|artist| artist.artist_name.to_string())
+            .collect();
+        let mbids: Vec<String> = artists
+            .iter()
+            .filter_map(|artist| artist.artist_mb_id.as_ref().map(|id| id.to_string()))
+            .collect();
+        let mbids_opt = if mbids.is_empty() { None } else { Some(mbids) };
+        return (names, mbids_opt);
+    }
+
+    // Fallback to old format with separate artist_names and artist_mb_ids arrays
+    let names = play
+        .artist_names
+        .as_ref()
+        .map(|names| names.iter().map(|n| n.to_string()).collect())
+        .unwrap_or_default();
+
+    let mbids = play
+        .artist_mb_ids
+        .as_ref()
+        .map(|ids| ids.iter().map(|id| id.to_string()).collect::<Vec<_>>())
+        .filter(|ids: &Vec<String>| !ids.is_empty());
+
+    (names, mbids)
+}
+
 /// Resolve DID to find the user's PDS endpoint
 async fn resolve_pds(did: &str) -> Result<String> {
     let plc_url = format!("https://plc.directory/{}", did);
@@ -71,17 +102,7 @@ pub async fn fetch_scrobbles(did: &str, _year: u32) -> Result<Vec<ScrobbleRecord
                     if rkey.starts_with(PLAY_COLLECTION) {
                         // Deserialize the Play record
                         if let Ok(play) = serde_ipld_dagcbor::from_slice::<Play>(&block_data) {
-                            // Extract artist names from the new 'artists' field
-                            let artists: Vec<String> = play
-                                .artists
-                                .as_ref()
-                                .map(|a| {
-                                    a.iter()
-                                        .map(|artist| artist.artist_name.to_string())
-                                        .collect()
-                                })
-                                .unwrap_or_default();
-
+                            let (artists, artist_mb_ids) = extract_artists_from_play(&play);
                             let played_time = play.played_time.as_ref().map(|dt| dt.to_string());
 
                             scrobbles.push(ScrobbleRecord {
@@ -98,7 +119,7 @@ pub async fn fetch_scrobbles(did: &str, _year: u32) -> Result<Vec<ScrobbleRecord
                                 track_mb_id: play.track_mb_id.as_ref().map(|s| s.to_string()),
                                 release_mb_id: play.release_mb_id.as_ref().map(|s| s.to_string()),
                                 release_name: play.release_name.as_ref().map(|s| s.to_string()),
-                                artist_mb_ids: None,
+                                artist_mb_ids,
                             });
                         }
                     }
@@ -122,17 +143,7 @@ pub async fn fetch_scrobbles(did: &str, _year: u32) -> Result<Vec<ScrobbleRecord
                 for (rkey, block_data) in chunk {
                     if rkey.starts_with(PLAY_COLLECTION) {
                         if let Ok(play) = serde_ipld_dagcbor::from_slice::<Play>(&block_data) {
-                            // Extract artist names from the new 'artists' field
-                            let artists: Vec<String> = play
-                                .artists
-                                .as_ref()
-                                .map(|a| {
-                                    a.iter()
-                                        .map(|artist| artist.artist_name.to_string())
-                                        .collect()
-                                })
-                                .unwrap_or_default();
-
+                            let (artists, artist_mb_ids) = extract_artists_from_play(&play);
                             let played_time = play.played_time.as_ref().map(|dt| dt.to_string());
 
                             scrobbles.push(ScrobbleRecord {
@@ -149,7 +160,7 @@ pub async fn fetch_scrobbles(did: &str, _year: u32) -> Result<Vec<ScrobbleRecord
                                 track_mb_id: play.track_mb_id.as_ref().map(|s| s.to_string()),
                                 release_mb_id: play.release_mb_id.as_ref().map(|s| s.to_string()),
                                 release_name: play.release_name.as_ref().map(|s| s.to_string()),
-                                artist_mb_ids: None,
+                                artist_mb_ids,
                             });
                         }
                     }

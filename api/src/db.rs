@@ -85,9 +85,9 @@ pub async fn get_scrobbles_for_year(
     let scrobbles = records
         .into_iter()
         .map(|r| {
-            let artist_names: Vec<String> = r
-                .artists
-                .as_array()
+            let artists_array = r.artists.as_array();
+
+            let artist_names: Vec<String> = artists_array
                 .map(|arr| {
                     arr.iter()
                         .filter_map(|a| {
@@ -99,18 +99,30 @@ pub async fn get_scrobbles_for_year(
                 })
                 .unwrap_or_default();
 
+            let artist_mb_ids: Option<Vec<String>> = artists_array
+                .map(|arr| {
+                    arr.iter()
+                        .filter_map(|a| {
+                            a.get("artistMbId")
+                                .and_then(|v| v.as_str())
+                                .map(String::from)
+                        })
+                        .collect()
+                })
+                .filter(|ids: &Vec<String>| !ids.is_empty());
+
             ScrobbleRecord {
                 uri: r.uri,
                 cid: String::new(),
                 track_name: r.track_name,
                 artists: artist_names,
                 played_time: Some(r.played_at.to_rfc3339()),
-                duration: r.duration_ms.map(|d| d as i64),
+                duration: r.duration_ms.map(|d| d as i64 / 1000),
                 recording_mb_id: r.recording_mb_id,
                 track_mb_id: r.track_mb_id,
                 release_mb_id: r.release_mb_id,
                 release_name: r.release_name,
-                artist_mb_ids: None,
+                artist_mb_ids,
             }
         })
         .collect();
@@ -131,14 +143,23 @@ pub async fn store_user_plays(
                 let played_at = dt.with_timezone(&Utc);
                 let duration_ms = scrobble.duration.map(|d| (d as i32) * 1000);
 
-                // Build artists jsonb array from artist names
-                let artists_json = serde_json::json!(
-                    scrobble
-                        .artists
-                        .iter()
-                        .map(|name| serde_json::json!({ "artistName": name, "artistMbId": serde_json::Value::Null }))
-                        .collect::<Vec<_>>()
-                );
+                // Build artists jsonb array from artist names and mbids
+                let artists_json = serde_json::json!(scrobble
+                    .artists
+                    .iter()
+                    .enumerate()
+                    .map(|(i, name)| {
+                        let mb_id = scrobble
+                            .artist_mb_ids
+                            .as_ref()
+                            .and_then(|ids| ids.get(i))
+                            .cloned();
+                        serde_json::json!({
+                            "artistName": name,
+                            "artistMbId": mb_id
+                        })
+                    })
+                    .collect::<Vec<_>>());
 
                 sqlx::query(
                     r#"

@@ -1,30 +1,38 @@
 use axum::{
+    body::Body,
     extract::{Path, Query, State},
-    http::StatusCode,
-    response::Json,
+    http::header,
+    response::{Json, Response},
     routing::get,
     Router,
 };
 use serde::{Deserialize, Serialize};
 use sqlx::postgres::PgPool;
 use std::net::SocketAddr;
+use tokio::fs::File;
+use tokio_util::io::ReaderStream;
 use tower_http::cors::CorsLayer;
 use tracing_subscriber;
 
 pub mod atproto;
 pub mod db;
+pub mod fanart;
 pub mod models;
 pub mod wrapped;
 
 #[derive(Clone)]
 struct AppState {
     db: PgPool,
+    spotify_client_id: String,
+    spotify_client_secret: String,
+    fanart_api_key: String,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct WrappedData {
     year: u32,
     total_hours: f64,
+    total_plays: u32,
     top_artists: Vec<TopArtist>,
     top_tracks: Vec<TopTrack>,
     new_artists_count: u32,
@@ -33,6 +41,11 @@ pub struct WrappedData {
     weekend_avg_hours: f64,
     longest_streak: u32,
     days_active: u32,
+    pub avg_track_length_ms: i32,
+    pub listening_diversity: f64,       // unique tracks / total plays
+    pub hourly_distribution: [u32; 24], // plays per hour (UTC)
+    pub top_hour: u8,                   // hour with most plays (0-23)
+    pub longest_session_minutes: u32,   // longest continuous listening session
     #[serde(skip_serializing_if = "Option::is_none")]
     similar_users: Option<Vec<MusicBuddy>>,
 }
@@ -52,6 +65,8 @@ struct TopArtist {
     hours: f64,
     #[serde(skip_serializing_if = "Option::is_none")]
     mb_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    image_url: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     top_track: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -85,11 +100,12 @@ struct WrappedQuery {
     did: String,
 }
 
+#[axum::debug_handler]
 async fn get_wrapped(
     State(state): State<AppState>,
     Path(year): Path<u32>,
     Query(params): Query<WrappedQuery>,
-) -> Result<Json<WrappedData>, StatusCode> {
+) -> Result<Json<WrappedData>, axum::http::StatusCode> {
     let did = &params.did;
 
     if let Ok(Some(cached)) = db::get_cached_wrapped(&state.db, did, year).await {
@@ -117,7 +133,7 @@ async fn get_wrapped(
             );
             let fetched_scrobbles = atproto::fetch_scrobbles(did, year).await.map_err(|e| {
                 tracing::error!("failed to fetch scrobbles: {}", e);
-                StatusCode::INTERNAL_SERVER_ERROR
+                axum::http::StatusCode::INTERNAL_SERVER_ERROR
             })?;
 
             // Store all play records for similarity matching
@@ -130,39 +146,66 @@ async fn get_wrapped(
     };
 
     if !has_data {
-        return Err(StatusCode::NOT_FOUND);
+        return Err(axum::http::StatusCode::NOT_FOUND);
     }
 
     let stats = wrapped::calculate_wrapped_stats(&state.db, did, year)
         .await
         .map_err(|e| {
             tracing::error!("failed to calculate wrapped stats: {}", e);
-            StatusCode::INTERNAL_SERVER_ERROR
+            axum::http::StatusCode::INTERNAL_SERVER_ERROR
         })?;
 
-    let top_artists = stats
-        .top_artists
-        .into_iter()
-        .map(|(name, plays, hours, mb_id)| {
-            let (top_track, top_track_plays, top_track_duration_ms) = stats
-                .top_track_per_artist
-                .get(&name)
-                .map(|(track, count, duration)| {
-                    (Some(track.clone()), Some(*count), Some(*duration))
-                })
-                .unwrap_or((None, None, None));
+    let mut top_artists = Vec::new();
+    for (name, plays, hours, mb_id) in stats.top_artists {
+        let (top_track, top_track_plays, top_track_duration_ms) = stats
+            .top_track_per_artist
+            .get(&name)
+            .map(|(track, count, duration)| (Some(track.clone()), Some(*count), Some(*duration)))
+            .unwrap_or((None, None, None));
 
-            TopArtist {
-                name,
-                plays,
-                hours,
-                mb_id,
-                top_track,
-                top_track_plays,
-                top_track_duration_ms,
+        // Fetch artist image if we have an MB ID
+        let image_url = if let Some(ref mbid) = mb_id {
+            tracing::info!("fetching artist image for {} (mbid: {})", name, mbid);
+            match fanart::get_artist_image(
+                &state.db,
+                mbid,
+                &name,
+                &state.spotify_client_id,
+                &state.spotify_client_secret,
+                &state.fanart_api_key,
+            )
+            .await
+            {
+                Ok(url) => {
+                    if let Some(ref u) = url {
+                        tracing::info!("successfully fetched image for {}: {}", name, u);
+                    } else {
+                        tracing::warn!("no image found for {}", name);
+                    }
+                    url
+                }
+                Err(e) => {
+                    tracing::error!("failed to fetch artist image for {}: {}", name, e);
+                    None
+                }
             }
-        })
-        .collect();
+        } else {
+            tracing::debug!("no mbid for artist {}, skipping image fetch", name);
+            None
+        };
+
+        top_artists.push(TopArtist {
+            name,
+            plays,
+            hours,
+            mb_id,
+            image_url,
+            top_track,
+            top_track_plays,
+            top_track_duration_ms,
+        });
+    }
 
     let top_tracks = stats
         .top_tracks
@@ -209,6 +252,7 @@ async fn get_wrapped(
     let data = WrappedData {
         year,
         total_hours: stats.total_hours,
+        total_plays: stats.total_plays,
         top_artists,
         top_tracks,
         new_artists_count: stats.new_artists_count,
@@ -218,6 +262,11 @@ async fn get_wrapped(
         longest_streak: stats.longest_streak,
         days_active: stats.days_active,
         similar_users,
+        avg_track_length_ms: stats.avg_track_length_ms,
+        listening_diversity: stats.listening_diversity,
+        hourly_distribution: stats.hourly_distribution,
+        top_hour: stats.top_hour,
+        longest_session_minutes: stats.longest_session_minutes,
     };
 
     if let Err(e) = db::cache_wrapped(&state.db, did, year, &data).await {
@@ -231,6 +280,37 @@ async fn health_check() -> &'static str {
     "ok"
 }
 
+async fn serve_image(Path(filename): Path<String>) -> Result<Response, axum::http::StatusCode> {
+    let filepath = std::path::PathBuf::from("./images").join(&filename);
+
+    // Security: prevent path traversal
+    if !filepath.starts_with("./images") {
+        return Err(axum::http::StatusCode::BAD_REQUEST);
+    }
+
+    let file = File::open(&filepath)
+        .await
+        .map_err(|_| axum::http::StatusCode::NOT_FOUND)?;
+
+    // Determine content type from extension
+    let content_type = if filename.ends_with(".png") {
+        "image/png"
+    } else if filename.ends_with(".webp") {
+        "image/webp"
+    } else {
+        "image/jpeg"
+    };
+
+    let stream = ReaderStream::new(file);
+    let body = Body::from_stream(stream);
+
+    Ok(Response::builder()
+        .header(header::CONTENT_TYPE, content_type)
+        .header(header::CACHE_CONTROL, "public, max-age=2592000") // 30 days
+        .body(body)
+        .unwrap())
+}
+
 pub async fn run() {
     tracing_subscriber::fmt()
         .with_env_filter("teal_wrapped_api=debug,tower_http=debug")
@@ -239,11 +319,27 @@ pub async fn run() {
     let db = db::init_db().await.expect("failed to initialize database");
     tracing::info!("database initialized");
 
-    let state = AppState { db };
+    let spotify_client_id = std::env::var("SPOTIFY_CLIENT_ID").unwrap_or_default();
+    let spotify_client_secret = std::env::var("SPOTIFY_CLIENT_SECRET").unwrap_or_default();
+    let fanart_api_key = std::env::var("FANART_API_KEY").unwrap_or_default();
+
+    if spotify_client_id.is_empty() && fanart_api_key.is_empty() {
+        tracing::warn!(
+            "Neither SPOTIFY_CLIENT_ID nor FANART_API_KEY set, artist images will not be fetched"
+        );
+    }
+
+    let state = AppState {
+        db,
+        spotify_client_id,
+        spotify_client_secret,
+        fanart_api_key,
+    };
 
     let app = Router::new()
         .route("/health", get(health_check))
         .route("/api/wrapped/:year", get(get_wrapped))
+        .route("/images/:filename", get(serve_image))
         .layer(CorsLayer::permissive())
         .with_state(state);
 

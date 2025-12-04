@@ -1,6 +1,32 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { motion, useInView, useScroll, useTransform } from "framer-motion";
 import { useRef, useEffect, useState } from "react";
+
+// Hook to get responsive margin for intersection observer
+function useResponsiveMargin() {
+  const [margin, setMargin] = useState("-20px 0px -20px 0px");
+
+  useEffect(() => {
+    const updateMargin = () => {
+      if (window.innerWidth < 640) {
+        // Mobile: very small margin
+        setMargin("-10px 0px -10px 0px");
+      } else if (window.innerWidth < 1024) {
+        // Tablet: small margin
+        setMargin("-20px 0px -20px 0px");
+      } else {
+        // Desktop: larger margin
+        setMargin("-50px 0px -50px 0px");
+      }
+    };
+
+    updateMargin();
+    window.addEventListener("resize", updateMargin);
+    return () => window.removeEventListener("resize", updateMargin);
+  }, []);
+
+  return margin;
+}
 import {
   MeshGradient,
   Metaballs,
@@ -11,11 +37,13 @@ import StaggeredText from "@/components/StaggeredText";
 interface WrappedData {
   year: number;
   total_hours: number;
+  total_plays: number;
   top_artists: Array<{
     name: string;
     plays: number;
     hours: number;
     mb_id?: string;
+    image_url?: string;
     top_track?: string;
     top_track_plays?: number;
     top_track_duration_ms?: number;
@@ -62,17 +90,32 @@ function getActivityColor(
   return "bg-white/5";
 }
 
-function generateCalendarDates(year: number): Date[] {
-  const dates: Date[] = [];
+function generateCalendarWeeks(year: number): Date[][] {
+  const weeks: Date[][] = [];
   const startDate = new Date(`${year}-01-01`);
-  let currentDate = new Date(startDate);
 
-  while (currentDate.getFullYear() === year) {
-    dates.push(new Date(currentDate));
-    currentDate.setDate(currentDate.getDate() + 1);
+  // Find the first Monday on or before Jan 1
+  const firstDay = new Date(startDate);
+  const dayOfWeek = firstDay.getDay();
+  const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+  firstDay.setDate(firstDay.getDate() - daysToMonday);
+
+  let currentDate = new Date(firstDay);
+  const endDate = new Date(`${year}-12-31`);
+
+  while (currentDate <= endDate || weeks.length < 53) {
+    const week: Date[] = [];
+    for (let i = 0; i < 7; i++) {
+      week.push(new Date(currentDate));
+      currentDate.setDate(currentDate.getDate() + 1);
+    }
+    weeks.push(week);
+
+    // Stop if we've gone past the year
+    if (currentDate.getFullYear() > year) break;
   }
 
-  return dates;
+  return weeks;
 }
 
 function AnimatedNumber({
@@ -83,7 +126,11 @@ function AnimatedNumber({
   duration?: number;
 }) {
   const ref = useRef(null);
-  const isInView = useInView(ref, { once: true, margin: "-100px" });
+  const margin = useResponsiveMargin();
+  const isInView = useInView(ref, {
+    once: true,
+    margin,
+  });
 
   return (
     <motion.span
@@ -125,7 +172,11 @@ function FadeUpSection({
   delay?: number;
 }) {
   const ref = useRef(null);
-  const isInView = useInView(ref, { once: true, margin: "-100px" });
+  const margin = useResponsiveMargin();
+  const isInView = useInView(ref, {
+    once: true,
+    margin,
+  });
 
   return (
     <motion.div
@@ -206,17 +257,9 @@ function WrappedPage() {
     <div className="bg-[#0a0a0a] text-white overflow-x-hidden">
       {/* Hero - Full bleed year */}
       <section className="min-h-screen flex items-center justify-center relative overflow-hidden">
-        <div className="relative px-8">
-          <motion.p
-            className="text-3xl uppercase tracking-[0.3em] text-white -mb-40 text-center relative z-10"
-            initial={{ opacity: 0, scale: 0.8 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.8, delay: 0.6 }}
-          >
-            Your Year in Music
-          </motion.p>
+        <div className="px-8 max-w-[100vw] relative">
           <motion.h1
-            className="text-[12rem] md:text-[20rem] lg:text-[28rem] font-bold leading-none bg-gradient-to-br from-[#00d9ff] via-[#0066ff] to-[#9900ff] bg-clip-text text-transparent text-center relative z-0"
+            className="text-[16rem] md:text-[18rem] lg:text-[24rem] xl:text-[32rem] font-black leading-none bg-gradient-to-br from-[#00d9ff] via-[#0066ff] to-[#9900ff] bg-clip-text text-transparent text-center relative z-0"
             initial={{ opacity: 0, scale: 0.8 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{
@@ -224,8 +267,20 @@ function WrappedPage() {
               ease: [0.34, 0.8, 0.64, 1],
             }}
           >
-            {data.year}
+            <div className="md:hidden">
+              <p>{String(data.year).substring(0, 2)}</p>
+              <p className="-mt-10">{String(data.year).substring(2, 4)}</p>
+            </div>
+            <div className="hidden md:block">{data.year}</div>
           </motion.h1>
+          <motion.p
+            className="md:absolute relative text-3xl md:text-3xl lg:text-4xl left-0 right-0 md:left-auto uppercase tracking-[0.3em] text-white -mt-40 text-center z-30"
+            initial={{ opacity: 0, scale: 1 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.8, delay: 0.6 }}
+          >
+            Your Year in Music
+          </motion.p>
         </div>
       </section>
 
@@ -272,7 +327,8 @@ function WrappedPage() {
           </FadeUpSection>
           <FadeUpSection delay={0.6}>
             <p className="text-lg md:text-xl text-white/40 mt-6 max-w-md">
-              That's 51 days straight. You could've walked to Tokyo.
+              That's {Math.round(data.total_hours / 24)} days straight. You
+              could've walked to Tokyo!
             </p>
           </FadeUpSection>
         </div>
@@ -300,6 +356,11 @@ function WrappedPage() {
                 <p className="text-xs uppercase tracking-[0.3em] text-white/40 mb-8">
                   Your Top Artist
                 </p>
+                <img
+                  src={data.top_artists[0]?.image_url}
+                  alt={data.top_artists[0]?.name}
+                  className="mb-8 rounded-2xl border border-white/10 shadow-lg w-4/5 brightness-90"
+                />
                 <StaggeredText
                   text={data.top_artists[0]?.name || "Unknown"}
                   className="text-7xl md:text-8xl lg:text-9xl font-bold text-white leading-[0.9] mb-12"
@@ -433,7 +494,7 @@ function WrappedPage() {
         <div className="max-w-5xl mx-auto w-full relative z-10">
           <FadeUpSection>
             <p className="text-sm uppercase tracking-[0.3em] text-white/40 mb-16">
-              Your Top 5 Tracks
+              Your Top Tracks
             </p>
           </FadeUpSection>
           <div className="space-y-12">
@@ -488,14 +549,14 @@ function WrappedPage() {
         <div className="max-w-6xl mx-auto relative z-10">
           <FadeUpSection>
             <p className="text-sm uppercase tracking-[0.3em] text-white/40 mb-16 text-center">
-              Your Listening Rhythm
+              Your Listening Patterns
             </p>
           </FadeUpSection>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 mb-20">
             {/* Weekday */}
             <FadeUpSection delay={0.2}>
-              <div className="bg-white/5 backdrop-blur-sm rounded-3xl p-10 border border-white/10">
+              <div className="bg-white/5 backdrop-blur-sm rounded-3xl p-10 border border-white/10 aspect-video w-[400px] max-w-full">
                 <p className="text-sm uppercase tracking-wider text-white/40 mb-6">
                   Weekdays
                 </p>
@@ -506,24 +567,14 @@ function WrappedPage() {
                       duration={2}
                     />
                   </p>
-                  <p className="text-2xl text-white/60">hours per day</p>
-                </div>
-                <div className="space-y-4 pt-6 border-t border-white/10">
-                  <div className="flex justify-between items-baseline">
-                    <span className="text-white/50">
-                      Average daily listening
-                    </span>
-                    <span className="text-xl text-white font-medium">
-                      Consistent
-                    </span>
-                  </div>
+                  <p className="text-2xl text-white/60">avg. hours per day</p>
                 </div>
               </div>
             </FadeUpSection>
 
             {/* Weekend */}
             <FadeUpSection delay={0.4}>
-              <div className="bg-white/5 backdrop-blur-sm rounded-3xl p-10 border border-white/10">
+              <div className="bg-white/5 backdrop-blur-sm rounded-3xl p-10 border border-white/10  aspect-video w-[400px] max-w-full">
                 <p className="text-sm uppercase tracking-wider text-white/40 mb-6">
                   Weekends
                 </p>
@@ -534,17 +585,7 @@ function WrappedPage() {
                       duration={2}
                     />
                   </p>
-                  <p className="text-2xl text-white/60">hours per day</p>
-                </div>
-                <div className="space-y-4 pt-6 border-t border-white/10">
-                  <div className="flex justify-between items-baseline">
-                    <span className="text-white/50">
-                      Average daily listening
-                    </span>
-                    <span className="text-xl text-white font-medium">
-                      More relaxed
-                    </span>
-                  </div>
+                  <p className="text-2xl text-white/60">avg. hours per day</p>
                 </div>
               </div>
             </FadeUpSection>
@@ -553,8 +594,23 @@ function WrappedPage() {
           <FadeUpSection delay={0.6}>
             <div className="text-center">
               <p className="text-lg md:text-xl text-white/50 max-w-2xl mx-auto leading-relaxed">
-                Weekends are when you really dig in. 81% more listening time,
-                and you're way more adventurous with what you play.
+                {data.weekend_avg_hours > data.weekday_avg_hours ? (
+                  <>
+                    Weekends are when you really dig in.{" "}
+                    {Math.round(
+                      ((data.weekend_avg_hours - data.weekday_avg_hours) /
+                        data.weekday_avg_hours) *
+                        100,
+                    )}
+                    % more listening time, and you're way more adventurous with
+                    what you play.
+                  </>
+                ) : (
+                  <>
+                    You're surprisingly consistent throughout the week. No big
+                    spikes on weekends. Nice!
+                  </>
+                )}
               </p>
             </div>
           </FadeUpSection>
@@ -572,16 +628,20 @@ function WrappedPage() {
         </div>
         <div className="max-w-7xl mx-auto w-full relative z-10">
           <div className="grid grid-cols-1 lg:grid-cols-5 gap-16 items-center">
-            <div className="lg:col-span-3">
+            <div className="lg:col-span-3 relative">
+              <p className="text-xs uppercase tracking-[0.3em] text-white/40 mb-8">
+                Most Obsessed Track
+              </p>
               <FadeUpSection>
-                <p className="text-xs uppercase tracking-[0.3em] text-white/40 mb-8">
-                  Most Obsessed Track
-                </p>
+                <img
+                  src={`https://coverartarchive.org/release/${data.top_tracks[0]?.release_mb_id}/front-500.jpg`}
+                  className="-mb-18 rounded-2xl border border-white/10 shadow-lg w-md max-w-full brightness-85 relative z-0"
+                />
               </FadeUpSection>
               <FadeUpSection delay={0.2}>
                 <StaggeredText
                   text={data.top_tracks[0]?.title || "Unknown"}
-                  className="text-7xl md:text-8xl lg:text-9xl font-bold text-white leading-none mb-8"
+                  className="text-7xl md:text-8xl lg:text-9xl font-bold text-white leading-none mb-8 text-shadow-md relative z-10"
                   offset={40}
                   delay={0.1}
                   duration={0.2}
@@ -659,8 +719,11 @@ function WrappedPage() {
                   as="p"
                 />
                 <p className="text-xl text-white/40 mt-6">
-                  You listened every single day for {data.longest_streak}{" "}
-                  consecutive days
+                  {data.longest_streak >= 60
+                    ? `Some people meditate. You just hit play.`
+                    : data.longest_streak >= 30
+                      ? `Music isn't background noise for you—it's the soundtrack.`
+                      : `Consistency pays off. Keep it going.`}
                 </p>
               </div>
             </FadeUpSection>
@@ -668,16 +731,17 @@ function WrappedPage() {
             <FadeUpSection delay={0.4}>
               <div>
                 <p className="text-sm uppercase tracking-wider text-white/40 mb-8">
-                  Your 2025 Activity
+                  Your {data.year} Activity
                 </p>
                 {/* Desktop: horizontal layout */}
                 <div className="hidden md:block overflow-x-auto">
                   <div className="inline-flex flex-col gap-1.5 min-w-full">
-                    {/* Days of week labels */}
+                    {/* Month labels */}
                     <div className="flex gap-1.5">
-                      <div className="w-6 text-xs text-white/30" />
-                      {Array.from({ length: 53 }, (_, weekIdx) => {
-                        const isFirstOfMonth = weekIdx % 4 === 0;
+                      <div className="w-8" />
+                      {generateCalendarWeeks(data.year).map((week, weekIdx) => {
+                        const firstDate = week[0];
+                        const isFirstWeekOfMonth = firstDate.getDate() <= 7;
                         const monthNames = [
                           "Jan",
                           "Feb",
@@ -695,66 +759,60 @@ function WrappedPage() {
                         return (
                           <div
                             key={weekIdx}
-                            className="w-3 text-[10px] text-white/30 text-center"
+                            className="w-3.5 text-[10px] text-white/30"
                           >
-                            {isFirstOfMonth &&
-                              monthNames[Math.floor(weekIdx / 4.4)]}
+                            {isFirstWeekOfMonth &&
+                              monthNames[firstDate.getMonth()]}
                           </div>
                         );
                       })}
                     </div>
-                    {/* Week rows */}
+                    {/* Day rows */}
                     {["Mon", "", "Wed", "", "Fri", "", "Sun"].map(
                       (day, dayIdx) => (
-                        <div
-                          key={dayIdx}
-                          className="flex gap-1.5 items-center justify-center"
-                        >
-                          <div className="w-6 text-xs text-white/30">{day}</div>
-                          {generateCalendarDates(data.year)
-                            .filter((d) => {
-                              const dow = d.getDay();
-                              const adjustedDow = dow === 0 ? 6 : dow - 1;
-                              return adjustedDow === dayIdx;
-                            })
-                            .map((date, idx) => {
+                        <div key={dayIdx} className="flex gap-1.5 items-center">
+                          <div className="w-8 text-xs text-white/30">{day}</div>
+                          {generateCalendarWeeks(data.year).map(
+                            (week, weekIdx) => {
+                              const date = week[dayIdx];
                               const bgColor = getActivityColor(
                                 date,
                                 data.activity_graph,
                               );
+                              const activity = data.activity_graph.find(
+                                (a) =>
+                                  a.date === date.toISOString().split("T")[0],
+                              );
                               return (
                                 <motion.div
-                                  key={idx}
+                                  key={weekIdx}
                                   className={`w-3.5 h-3.5 rounded-sm ${bgColor}`}
                                   initial={{ opacity: 0, scale: 0 }}
                                   animate={{ opacity: 1, scale: 1 }}
                                   transition={{
                                     duration: 0.2,
-                                    delay: 0.4 + idx * 0.005 + dayIdx * 0.01,
+                                    delay:
+                                      0.4 + weekIdx * 0.005 + dayIdx * 0.01,
                                   }}
-                                  title={`${date.toDateString()}: ${
-                                    data.activity_graph.find(
-                                      (a) =>
-                                        a.date ===
-                                        date.toISOString().split("T")[0],
-                                    )?.hours || 0
-                                  } hours`}
+                                  title={`${date.toDateString()}: ${activity?.hours.toFixed(1) || 0} hours`}
                                 />
                               );
-                            })}
+                            },
+                          )}
                         </div>
                       ),
                     )}
                   </div>
                 </div>
                 {/* Mobile: vertical scrolling layout */}
-                <div className="md:hidden md:max-h-0 flex justify-center">
-                  <div className="inline-flex flex-row gap-2">
+                <div className="md:hidden overflow-x-auto flex justify-center">
+                  <div className="inline-flex flex-row gap-1.5">
                     {/* Month labels column */}
-                    <div className="flex flex-col gap-2">
-                      <div className="h-8" />
-                      {Array.from({ length: 53 }, (_, weekIdx) => {
-                        const isFirstOfMonth = weekIdx % 4 === 0;
+                    <div className="flex flex-col gap-1.5">
+                      <div className="h-6" />
+                      {generateCalendarWeeks(data.year).map((week, weekIdx) => {
+                        const firstDate = week[0];
+                        const isFirstWeekOfMonth = firstDate.getDate() <= 7;
                         const monthNames = [
                           "Jan",
                           "Feb",
@@ -772,52 +830,48 @@ function WrappedPage() {
                         return (
                           <div
                             key={weekIdx}
-                            className="h-4 text-xs text-white/30 flex items-center pr-2"
+                            className="h-3.5 text-[10px] text-white/30 flex items-center pr-2"
                           >
-                            {isFirstOfMonth &&
-                              monthNames[Math.floor(weekIdx / 4.4)]}
+                            {isFirstWeekOfMonth &&
+                              monthNames[firstDate.getMonth()]}
                           </div>
                         );
                       })}
                     </div>
-                    {/* Week columns */}
+                    {/* Day columns */}
                     {["Mon", "", "Wed", "", "Fri", "", "Sun"].map(
                       (day, dayIdx) => (
-                        <div key={dayIdx} className="flex flex-col gap-2">
-                          <div className="h-8 text-sm text-white/30 -rotate-55 -mr-4 md:mr-0 flex items-center justify-center">
+                        <div key={dayIdx} className="flex flex-col gap-1.5">
+                          <div className="h-6 text-xs text-white/30 flex items-center justify-center">
                             {day}
                           </div>
-                          {generateCalendarDates(data.year)
-                            .filter((d) => {
-                              const dow = d.getDay();
-                              const adjustedDow = dow === 0 ? 6 : dow - 1;
-                              return adjustedDow === dayIdx;
-                            })
-                            .map((date, idx) => {
+                          {generateCalendarWeeks(data.year).map(
+                            (week, weekIdx) => {
+                              const date = week[dayIdx];
                               const bgColor = getActivityColor(
                                 date,
                                 data.activity_graph,
                               );
+                              const activity = data.activity_graph.find(
+                                (a) =>
+                                  a.date === date.toISOString().split("T")[0],
+                              );
                               return (
                                 <motion.div
-                                  key={idx}
-                                  className={`w-4 h-4 rounded-sm ${bgColor}`}
+                                  key={weekIdx}
+                                  className={`w-3.5 h-3.5 rounded-sm ${bgColor}`}
                                   initial={{ opacity: 0, scale: 0 }}
                                   animate={{ opacity: 1, scale: 1 }}
                                   transition={{
                                     duration: 0.2,
-                                    delay: 0.4 + idx * 0.005 + dayIdx * 0.01,
+                                    delay:
+                                      0.4 + weekIdx * 0.005 + dayIdx * 0.01,
                                   }}
-                                  title={`${date.toDateString()}: ${
-                                    data.activity_graph.find(
-                                      (a) =>
-                                        a.date ===
-                                        date.toISOString().split("T")[0],
-                                    )?.hours || 0
-                                  } hours`}
+                                  title={`${date.toDateString()}: ${activity?.hours.toFixed(1) || 0} hours`}
                                 />
                               );
-                            })}
+                            },
+                          )}
                         </div>
                       ),
                     )}
@@ -838,24 +892,13 @@ function WrappedPage() {
             </FadeUpSection>
 
             <FadeUpSection delay={0.6}>
-              <div className="grid grid-cols-3 gap-8 mt-12 max-w-4xl mx-auto">
+              <div className="grid grid-cols-2 gap-8 mt-12 max-w-4xl mx-auto">
                 <div className="text-center">
                   <p className="text-4xl md:text-5xl font-bold text-white/80 mb-2">
                     <AnimatedNumber value={data.days_active} duration={1.5} />
                   </p>
                   <p className="text-sm text-white/40 uppercase tracking-wider">
                     days active
-                  </p>
-                </div>
-                <div className="text-center">
-                  <p className="text-4xl md:text-5xl font-bold text-white/80 mb-2">
-                    <AnimatedNumber
-                      value={365 - data.days_active}
-                      duration={1.5}
-                    />
-                  </p>
-                  <p className="text-sm text-white/40 uppercase tracking-wider">
-                    days off
                   </p>
                 </div>
                 <div className="text-center">
@@ -875,7 +918,7 @@ function WrappedPage() {
         </div>
       </section>
 
-      {/* Deep Cuts */}
+      {/* Top 3 Dominance */}
       <section className="min-h-screen flex items-center justify-center px-8 py-24 relative overflow-hidden">
         <div className="absolute inset-0 opacity-25">
           <SimplexNoise
@@ -888,47 +931,102 @@ function WrappedPage() {
           className="absolute top-1/3 left-0 w-[32rem] h-[32rem] bg-[#9900ff]/10 rounded-full blur-[140px]"
           speed={0.3}
         />
-        <div className="max-w-4xl mx-auto relative z-10">
+        <div className="max-w-5xl mx-auto relative z-10">
           <FadeUpSection>
             <div className="text-center mb-16">
               <p className="text-sm uppercase tracking-[0.3em] text-white/40 mb-8">
-                You're a Deep Listener
+                The Big Three
               </p>
               <div className="flex justify-center items-baseline gap-6 mb-8">
                 <span className="text-[10rem] md:text-[14rem] font-bold leading-none bg-gradient-to-br from-[#9900ff] to-[#ff0099] bg-clip-text text-transparent">
-                  <AnimatedNumber value={67} duration={2} />%
+                  <AnimatedNumber
+                    value={Math.round(
+                      (data.top_artists
+                        .slice(0, 3)
+                        .reduce((acc, a) => acc + a.hours, 0) /
+                        data.total_hours) *
+                        100,
+                    )}
+                    duration={2}
+                  />
+                  %
                 </span>
               </div>
-              <p className="text-2xl md:text-3xl text-white/70 max-w-2xl mx-auto leading-relaxed">
-                of your listening was full albums, not individual tracks
+              <p className="text-2xl md:text-3xl text-white/70 max-w-2xl mx-auto leading-relaxed mb-12">
+                of your listening went to just three artists
               </p>
             </div>
           </FadeUpSection>
           <FadeUpSection delay={0.4}>
-            <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-10 border border-white/10">
-              <p className="text-sm uppercase tracking-wider text-white/40 mb-4">
-                Most Played Album
-              </p>
-              <StaggeredText
-                text="In Rainbows"
-                className="text-4xl md:text-5xl font-bold text-white mb-2"
-                offset={25}
-                delay={0.2}
-                duration={0.12}
-                staggerDelay={0.08}
-                once={true}
-                as="h3"
-              />
-              <p className="text-xl text-white/50 mb-6">Radiohead</p>
-              <div className="flex items-baseline gap-4">
-                <span className="text-5xl md:text-6xl font-bold bg-gradient-to-r from-[#9900ff] to-[#ff0099] bg-clip-text text-transparent">
-                  <AnimatedNumber value={89} duration={1.5} />
-                </span>
-                <span className="text-lg text-white/40">
-                  complete playthroughs
-                </span>
-              </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {data.top_artists.slice(0, 3).map((artist, idx) => (
+                <div
+                  key={idx}
+                  className="bg-white/5 backdrop-blur-sm rounded-2xl overflow-hidden border border-white/10"
+                >
+                  {artist.image_url && (
+                    <div className="relative w-full aspect-square overflow-hidden">
+                      <img
+                        src={artist.image_url}
+                        alt={artist.name}
+                        className="w-full h-full object-cover"
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-t from-[#0a0a0a] via-[#0a0a0a]/60 to-transparent" />
+                      <div className="absolute top-4 left-4 text-6xl font-bold text-white/90">
+                        {idx + 1}
+                      </div>
+                    </div>
+                  )}
+                  <div className="p-8">
+                    {!artist.image_url && (
+                      <div className="text-6xl md:text-7xl font-bold text-white/20 mb-4">
+                        {idx + 1}
+                      </div>
+                    )}
+                    <StaggeredText
+                      text={artist.name}
+                      className="text-2xl md:text-3xl font-bold text-white mb-4"
+                      offset={20}
+                      delay={0.4 + idx * 0.1}
+                      duration={0.1}
+                      staggerDelay={0.06}
+                      once={true}
+                      as="h3"
+                    />
+                    <div className="space-y-2">
+                      <div className="flex justify-between items-baseline">
+                        <span className="text-sm text-white/40">hours</span>
+                        <span className="text-xl font-bold bg-gradient-to-r from-[#9900ff] to-[#ff0099] bg-clip-text text-transparent">
+                          <AnimatedNumber
+                            value={Math.round(artist.hours)}
+                            duration={1.5}
+                          />
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-baseline">
+                        <span className="text-sm text-white/40">plays</span>
+                        <span className="text-lg text-white/60">
+                          <AnimatedNumber value={artist.plays} duration={1.5} />
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
+          </FadeUpSection>
+          <FadeUpSection delay={0.8}>
+            <p className="text-lg text-white/50 text-center mt-12 max-w-2xl mx-auto">
+              {Math.round(
+                (data.top_artists
+                  .slice(0, 3)
+                  .reduce((acc, a) => acc + a.hours, 0) /
+                  data.total_hours) *
+                  100,
+              ) >= 25
+                ? "You know what you like, and you really commit to it."
+                : "Focused, but still leaving room for discovery."}
+            </p>
           </FadeUpSection>
         </div>
       </section>
@@ -962,7 +1060,7 @@ function WrappedPage() {
           </FadeUpSection>
           <FadeUpSection delay={0.4}>
             <StaggeredText
-              text={`${data.new_artists_count} new artists.`}
+              text={`${data.total_plays} tracks played.`}
               className="text-5xl md:text-7xl text-white/90 mb-6 font-light"
               offset={30}
               delay={0.1}
@@ -986,8 +1084,10 @@ function WrappedPage() {
           </FadeUpSection>
           <FadeUpSection delay={0.8}>
             <p className="text-xl md:text-2xl text-white/50 leading-relaxed max-w-2xl mx-auto">
-              Music isn't just what you listen to. It's where you live. Thanks
-              for making 2025 unforgettable.
+              Thanks for making 2025 unforgettable,
+              <br />
+              from <span className="font-hand">Matt</span> and{" "}
+              <span className="font-hand">Natalie</span>.
             </p>
           </FadeUpSection>
         </div>

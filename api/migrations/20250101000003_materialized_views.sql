@@ -17,11 +17,11 @@ FROM (
         user_did,
         CAST(DATE_PART('year', played_at) AS INTEGER) as year,
         artist->>'artistName' as artist_name,
-        artist->>'artistMbId' as artist_mb_id,
+        MAX(artist->>'artistMbId') as artist_mb_id,
         COUNT(*) as play_count,
         SUM(COALESCE(duration_ms, 210000)) as total_duration_ms
     FROM user_plays, jsonb_array_elements(artists) as artist
-    GROUP BY user_did, CAST(DATE_PART('year', played_at) AS INTEGER), artist->>'artistName', artist->>'artistMbId'
+    GROUP BY user_did, CAST(DATE_PART('year', played_at) AS INTEGER), artist->>'artistName'
 ) artist_plays
 GROUP BY user_did, year;
 

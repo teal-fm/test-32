@@ -14,6 +14,12 @@ pub struct TrackMetadata {
 #[derive(Debug)]
 pub struct WrappedStats {
     pub total_hours: f64,
+    pub total_plays: u32,
+    pub avg_track_length_ms: i32,
+    pub listening_diversity: f64,       // unique tracks / total plays
+    pub hourly_distribution: [u32; 24], // plays per hour (UTC)
+    pub top_hour: u8,                   // hour with most plays (0-23)
+    pub longest_session_minutes: u32,   // longest continuous listening session
     pub top_artists: Vec<(String, u32, f64, Option<String>)>,
     pub top_tracks: Vec<((String, String), u32, TrackMetadata)>,
     pub top_track_per_artist: HashMap<String, (String, u32, i32)>, // artist_name -> (track_title, play_count, duration_ms)
@@ -143,7 +149,111 @@ pub async fn calculate_wrapped_stats(
 
     // Calculate derived metrics
     let total_hours = total_duration_ms as f64 / (1000.0 * 3600.0);
+    let total_plays: u32 = daily_plays.values().sum();
     let days_active = daily_plays.len() as u32;
+
+    // Calculate average track length
+    let avg_track_length_ms = if total_plays > 0 {
+        (total_duration_ms / total_plays as i64) as i32
+    } else {
+        0
+    };
+
+    // Calculate listening diversity (unique tracks / total plays)
+    let unique_tracks: i64 = sqlx::query(
+        r#"
+        SELECT COUNT(DISTINCT track_name) as count
+        FROM user_plays
+        WHERE user_did = $1 AND EXTRACT(YEAR FROM played_at) = $2
+        "#,
+    )
+    .bind(user_did)
+    .bind(year as i32)
+    .fetch_one(pool)
+    .await
+    .map(|row| row.get::<i64, _>("count"))
+    .unwrap_or(0);
+
+    let listening_diversity = if total_plays > 0 {
+        unique_tracks as f64 / total_plays as f64
+    } else {
+        0.0
+    };
+
+    // Calculate hourly distribution
+    let hourly_stats = sqlx::query(
+        r#"
+        SELECT
+          EXTRACT(HOUR FROM played_at)::INT AS hour,
+          COUNT(*) AS play_count
+        FROM user_plays
+        WHERE user_did = $1
+          AND EXTRACT(YEAR FROM played_at) = $2
+        GROUP BY EXTRACT(HOUR FROM played_at)::INT
+        ORDER BY hour;
+        "#,
+    )
+    .bind(user_did)
+    .bind(year as i32)
+    .fetch_all(pool)
+    .await?;
+
+    let mut hourly_distribution = [0u32; 24];
+    for row in hourly_stats {
+        let hour: i32 = row.get("hour");
+        let count: i64 = row.get("play_count");
+        hourly_distribution[hour as usize] = count as u32;
+    }
+
+    let top_hour = hourly_distribution
+        .iter()
+        .enumerate()
+        .max_by_key(|(_, &count)| count)
+        .map(|(hour, _)| hour as u8)
+        .unwrap_or(0);
+
+    // Calculate longest listening session (plays within 6 minutes of each other)
+    let session_query = sqlx::query(
+        r#"
+        WITH sessions AS (
+            SELECT
+                played_at,
+                EXTRACT(EPOCH FROM (played_at - LAG(played_at) OVER (ORDER BY played_at))) AS gap_seconds
+            FROM user_plays
+            WHERE user_did = $1
+              AND EXTRACT(YEAR FROM played_at) = $2
+        ),
+        session_groups AS (
+            SELECT
+                played_at,
+                SUM(
+                    CASE
+                        WHEN gap_seconds > 360 OR gap_seconds IS NULL THEN 1
+                        ELSE 0
+                    END
+                ) OVER (ORDER BY played_at) AS session_id
+            FROM sessions
+        ),
+        session_lengths AS (
+            SELECT
+                session_id,
+                EXTRACT(EPOCH FROM (MAX(played_at) - MIN(played_at))) / 60.0 AS duration_minutes
+                -- 60.0 ensures DOUBLE PRECISION arithmetic
+            FROM session_groups
+            GROUP BY session_id
+        )
+        SELECT
+            COALESCE(MAX(duration_minutes)::DOUBLE PRECISION, 0) AS max_session
+        FROM session_lengths;
+        "#,
+    )
+    .bind(user_did)
+    .bind(year as i32)
+    .fetch_one(pool)
+    .await?;
+
+    let longest_session_minutes: f64 = session_query.get("max_session");
+    let longest_session_minutes = longest_session_minutes.round() as u32;
 
     // Count unique first artists for new_artists
     let unique_first_artists: i64 = sqlx::query(
@@ -266,6 +376,7 @@ pub async fn calculate_wrapped_stats(
 
     Ok(WrappedStats {
         total_hours,
+        total_plays,
         top_artists,
         top_tracks,
         top_track_per_artist,
@@ -275,6 +386,11 @@ pub async fn calculate_wrapped_stats(
         weekend_avg_hours,
         longest_streak,
         days_active,
+        avg_track_length_ms,
+        listening_diversity,
+        hourly_distribution,
+        top_hour,
+        longest_session_minutes,
     })
 }
 
