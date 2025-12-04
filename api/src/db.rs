@@ -129,7 +129,7 @@ pub async fn store_user_plays(
         if let Some(time_str) = &scrobble.played_time {
             if let Ok(dt) = chrono::DateTime::parse_from_rfc3339(time_str) {
                 let played_at = dt.with_timezone(&Utc);
-                let duration_ms = scrobble.duration.map(|d| d as i32);
+                let duration_ms = scrobble.duration.map(|d| (d as i32) * 1000);
 
                 // Build artists jsonb array from artist names
                 let artists_json = serde_json::json!(

@@ -91,8 +91,8 @@ async fn get_wrapped(
         return Ok(Json(cached));
     }
 
-    // Try to get scrobbles from database first
-    let scrobbles = match db::get_scrobbles_for_year(&state.db, did, year).await {
+    // Check if we have any plays in the database
+    let has_data = match db::get_scrobbles_for_year(&state.db, did, year).await {
         Ok(db_scrobbles) if !db_scrobbles.is_empty() => {
             tracing::info!(
                 "found {} scrobbles in database for {} year {}",
@@ -100,7 +100,7 @@ async fn get_wrapped(
                 did,
                 year
             );
-            db_scrobbles
+            true
         }
         _ => {
             // Fallback to fetching from atproto
@@ -119,11 +119,20 @@ async fn get_wrapped(
                 tracing::warn!("failed to store user plays: {}", e);
             }
 
-            fetched_scrobbles
+            !fetched_scrobbles.is_empty()
         }
     };
 
-    let stats = wrapped::calculate_wrapped_stats(scrobbles, year);
+    if !has_data {
+        return Err(StatusCode::NOT_FOUND);
+    }
+
+    let stats = wrapped::calculate_wrapped_stats(&state.db, did, year)
+        .await
+        .map_err(|e| {
+            tracing::error!("failed to calculate wrapped stats: {}", e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
 
     let top_artists = stats
         .top_artists
