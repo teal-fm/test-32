@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { motion, useInView, useScroll, useTransform } from "framer-motion";
 import { useRef, useEffect, useState } from "react";
+import html2canvas from "html2canvas-pro";
 
 // Hook to get responsive margin for intersection observer
 function useResponsiveMargin() {
@@ -36,12 +37,12 @@ import StaggeredText from "@/components/StaggeredText";
 
 interface WrappedData {
   year: number;
-  total_hours: number;
+  total_minutes: number;
   total_plays: number;
   top_artists: Array<{
     name: string;
     plays: number;
-    hours: number;
+    minutes: number;
     mb_id?: string;
     image_url?: string;
     top_track?: string;
@@ -60,12 +61,17 @@ interface WrappedData {
   activity_graph: Array<{
     date: string;
     plays: number;
-    hours: number;
+    minutes: number;
   }>;
-  weekday_avg_hours: number;
-  weekend_avg_hours: number;
+  hourly_distribution: number[]; // plays per hour (UTC)
+  weekday_avg_minutes: number;
+  weekend_avg_minutes: number;
   longest_streak: number;
   days_active: number;
+  avg_track_length_ms: number;
+  listening_diversity: number;
+  top_hour: number;
+  longest_session_minutes: number;
   similar_users?: Array<string>;
 }
 
@@ -75,27 +81,39 @@ export const Route = createFileRoute("/wrapped")({
 
 function getActivityColor(
   date: Date,
-  activityData: Array<{ date: string; plays: number; hours: number }>,
+  activityData: Array<{ date: string; plays: number; minutes: number }>,
 ): string {
   const dateStr = date.toISOString().split("T")[0];
   const activity = activityData.find((a) => a.date === dateStr);
 
   if (!activity) return "bg-white/5";
 
-  // Color based on hours listened
-  if (activity.hours >= 8) return "bg-[#00ff66]";
-  if (activity.hours >= 5) return "bg-[#00ff66]/70";
-  if (activity.hours >= 2) return "bg-[#00ff66]/40";
-  if (activity.hours >= 0.5) return "bg-[#00ff66]/20";
+  // Color based on hours listened (convert from minutes)
+  const hours = activity.minutes / 60;
+  if (hours >= 8) return "bg-[#04c4b8]";
+  if (hours >= 5) return "bg-[#04c4be]/70";
+  if (hours >= 2) return "bg-[#04c4b8]/40";
+  if (hours >= 0.5) return "bg-[#04c4b8]/20";
   return "bg-white/5";
 }
 
-function generateCalendarWeeks(year: number): Date[][] {
+function generateCalendarWeeks(
+  year: number,
+  activityData: Array<{ date: string; plays: number; minutes: number }>,
+): Date[][] {
   const weeks: Date[][] = [];
   const startDate = new Date(`${year}-01-01`);
 
-  // Find the first Monday on or before Jan 1
-  const firstDay = new Date(startDate);
+  // Find the first date with activity
+  const firstActivityDate =
+    activityData.length > 0
+      ? new Date(
+          Math.min(...activityData.map((a) => new Date(a.date).getTime())),
+        )
+      : startDate;
+
+  // Find the first Monday on or before the first activity date
+  const firstDay = new Date(firstActivityDate);
   const dayOfWeek = firstDay.getDay();
   const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
   firstDay.setDate(firstDay.getDate() - daysToMonday);
@@ -103,7 +121,7 @@ function generateCalendarWeeks(year: number): Date[][] {
   let currentDate = new Date(firstDay);
   const endDate = new Date(`${year}-12-31`);
 
-  while (currentDate <= endDate || weeks.length < 53) {
+  while (currentDate <= endDate) {
     const week: Date[] = [];
     for (let i = 0; i < 7; i++) {
       week.push(new Date(currentDate));
@@ -278,6 +296,12 @@ function WrappedPage() {
   const [data, setData] = useState<WrappedData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [generatingImage, setGeneratingImage] = useState(false);
+
+  const topStatsCardRef = useRef<HTMLDivElement>(null);
+  const topArtistCardRef = useRef<HTMLDivElement>(null);
+  const activityCardRef = useRef<HTMLDivElement>(null);
+  const overallCardRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -303,6 +327,37 @@ function WrappedPage() {
 
     fetchData();
   }, []);
+
+  const generateShareImage = async (
+    ref: React.RefObject<HTMLDivElement>,
+    filename: string,
+  ) => {
+    if (!ref.current) return;
+
+    setGeneratingImage(true);
+    try {
+      const canvas = await html2canvas(ref.current, {
+        backgroundColor: "#0a0a0a",
+        scale: 2,
+        logging: false,
+      });
+
+      const blob = await new Promise<Blob>((resolve) => {
+        canvas.toBlob((blob) => resolve(blob!), "image/png");
+      });
+
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = filename;
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error("Failed to generate image:", err);
+    } finally {
+      setGeneratingImage(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -375,7 +430,7 @@ function WrappedPage() {
             <div className="mb-8">
               <span className="text-[4rem] sm:text-[6rem] md:text-[10rem] lg:text-[14rem] font-bold leading-none bg-gradient-to-r from-[#00ffaa] to-[#00ff66] bg-clip-text text-transparent">
                 <AnimatedNumber
-                  value={Math.round(data.total_hours)}
+                  value={Math.round(data.total_minutes)}
                   duration={2.5}
                 />
               </span>
@@ -383,7 +438,7 @@ function WrappedPage() {
           </FadeUpSection>
           <FadeUpSection delay={0.4}>
             <StaggeredText
-              text="hours of music"
+              text="minutes of music"
               className="text-2xl sm:text-3xl md:text-5xl lg:text-6xl text-white/80"
               offset={30}
               duration={0.15}
@@ -394,119 +449,11 @@ function WrappedPage() {
           </FadeUpSection>
           <FadeUpSection delay={0.6}>
             <p className="text-base sm:text-lg md:text-xl text-white/40 mt-6 max-w-md">
-              That's {Math.round(data.total_hours / 24)} days straight. You
-              could've walked to Tokyo!
+              That's {Math.round(data.total_minutes / 60 / 24)} days straight.
+              You could have walked ~{Math.round(data.total_minutes * 0.05)}{" "}
+              miles in that amount of time!
             </p>
           </FadeUpSection>
-        </div>
-      </section>
-
-      {/* Top Artist - Editorial Layout */}
-      <section className="min-h-screen flex items-center px-8 md:px-16 lg:px-24 relative overflow-visible">
-        {/* Very subtle metaballs */}
-        <div className="absolute inset-0 opacity-30">
-          <Metaballs
-            colors={["#ff0099", "#9900ff"]}
-            count={4}
-            size={0.8}
-            speed={0.2}
-          />
-        </div>
-        <ParallaxBlob
-          className="absolute bottom-40 right-0 w-[32rem] h-[32rem] bg-[#ff0099]/10 rounded-full blur-[140px]"
-          speed={0.4}
-        />
-        <div className="max-w-7xl mx-auto w-full relative z-10">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-16 items-center">
-            <FadeUpSection>
-              <div>
-                <p className="text-xs uppercase tracking-[0.3em] text-white/40 mb-6 lg:mb-8">
-                  Your Top Artist
-                </p>
-                <img
-                  src={data.top_artists[0]?.image_url}
-                  alt={data.top_artists[0]?.name}
-                  className="mb-6 lg:mb-8 rounded-2xl border border-white/10 shadow-lg w-full max-w-sm lg:w-4/5 brightness-90"
-                />
-                <StaggeredText
-                  text={data.top_artists[0]?.name || "Unknown"}
-                  className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl xl:text-8xl font-bold text-white leading-[0.9] mb-8 lg:mb-12"
-                  offset={40}
-                  delay={0.2}
-                  duration={0.2}
-                  staggerDelay={0.15}
-                  once={true}
-                  as="h2"
-                />
-              </div>
-            </FadeUpSection>
-            <div className="space-y-6 lg:space-y-8">
-              <FadeUpSection delay={0.2}>
-                <div className="border-l-4 border-[#00d9ff] pl-6 lg:pl-8">
-                  <p className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold bg-gradient-to-r from-[#00d9ff] to-[#0066ff] bg-clip-text text-transparent">
-                    <AnimatedNumber
-                      value={Math.round(data.top_artists[0]?.hours || 0)}
-                    />
-                  </p>
-                  <p className="text-lg sm:text-xl text-white/60 mt-2">
-                    hours played
-                  </p>
-                </div>
-              </FadeUpSection>
-              <FadeUpSection delay={0.3}>
-                <div className="border-l-4 border-[#ff0099] pl-6 lg:pl-8">
-                  <p className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold bg-gradient-to-r from-[#ff0099] to-[#9900ff] bg-clip-text text-transparent">
-                    <AnimatedNumber value={data.top_artists[0]?.plays || 0} />
-                  </p>
-                  <p className="text-lg sm:text-xl text-white/60 mt-2">plays</p>
-                </div>
-              </FadeUpSection>
-              <FadeUpSection delay={0.4}>
-                <div className="pl-6 lg:pl-8 pt-6 lg:pt-8 border-t border-white/10">
-                  <p className="text-sm text-white/40 uppercase tracking-widest mb-3">
-                    Most Played Track
-                  </p>
-                  <StaggeredText
-                    text={data.top_artists[0]?.top_track || "Unknown"}
-                    className="text-xl sm:text-2xl md:text-3xl text-white font-medium"
-                    offset={20}
-                    delay={0.2}
-                    duration={0.1}
-                    staggerDelay={0.08}
-                    once={true}
-                    as="p"
-                  />
-                  {data.top_artists[0]?.top_track_plays && (
-                    <div className="text-sm text-white/40 mt-2 space-y-1">
-                      <p>
-                        {data.top_artists[0].top_track_plays} plays -{" "}
-                        {data.top_artists[0].top_track_duration_ms && (
-                          <span>
-                            {Math.round(
-                              (data.top_artists[0].top_track_duration_ms *
-                                data.top_artists[0].top_track_plays) /
-                                1000 /
-                                60,
-                            )}
-                            m{" "}
-                            {String(
-                              Math.floor(
-                                ((data.top_artists[0].top_track_duration_ms *
-                                  data.top_artists[0].top_track_plays) /
-                                  1000) %
-                                  60,
-                              ),
-                            ).padStart(2, "0")}
-                            s in total
-                          </span>
-                        )}
-                      </p>
-                    </div>
-                  )}
-                </div>
-              </FadeUpSection>
-            </div>
-          </div>
         </div>
       </section>
 
@@ -616,7 +563,243 @@ function WrappedPage() {
         </div>
       </section>
 
-      {/* Repeat Behavior */}
+      {/* Top Artist - Editorial Layout */}
+      <section className="min-h-screen flex items-center px-8 md:px-16 lg:px-24 relative overflow-visible">
+        {/* Very subtle metaballs */}
+        <div className="absolute inset-0 opacity-30">
+          <Metaballs
+            colors={["#ff0099", "#9900ff"]}
+            count={4}
+            size={0.8}
+            speed={0.2}
+          />
+        </div>
+        <ParallaxBlob
+          className="absolute bottom-40 right-0 w-[32rem] h-[32rem] bg-[#ff0099]/10 rounded-full blur-[140px]"
+          speed={0.4}
+        />
+        <div className="max-w-7xl mx-auto w-full relative z-10">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-16 items-center">
+            <FadeUpSection>
+              <div>
+                <p className="text-xs uppercase tracking-[0.3em] text-white/40 mb-6 lg:mb-8">
+                  Your Top Artist
+                </p>
+                <img
+                  src={data.top_artists[0]?.image_url}
+                  alt={data.top_artists[0]?.name}
+                  className="mb-6 lg:mb-8 rounded-2xl border border-white/10 shadow-lg w-full max-w-sm lg:w-4/5 brightness-90"
+                />
+                <StaggeredText
+                  text={data.top_artists[0]?.name || "Unknown"}
+                  className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl xl:text-8xl font-bold text-white leading-[0.9] mb-8 lg:mb-12"
+                  offset={40}
+                  delay={0.2}
+                  duration={0.2}
+                  staggerDelay={0.15}
+                  once={true}
+                  as="h2"
+                />
+              </div>
+            </FadeUpSection>
+            <div className="space-y-6 lg:space-y-8">
+              <FadeUpSection delay={0.2}>
+                <div className="border-l-4 border-[#00d9ff] pl-6 lg:pl-8">
+                  <p className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold bg-gradient-to-r from-[#00d9ff] to-[#0066ff] bg-clip-text text-transparent">
+                    <AnimatedNumber
+                      value={Math.round(
+                        (data.top_artists[0]?.minutes || 0) / 60,
+                      )}
+                    />
+                  </p>
+                  <p className="text-lg sm:text-xl text-white/60 mt-2">
+                    hours played
+                  </p>
+                </div>
+              </FadeUpSection>
+              <FadeUpSection delay={0.3}>
+                <div className="border-l-4 border-[#ff0099] pl-6 lg:pl-8">
+                  <p className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold bg-gradient-to-r from-[#ff0099] to-[#9900ff] bg-clip-text text-transparent">
+                    <AnimatedNumber value={data.top_artists[0]?.plays || 0} />
+                  </p>
+                  <p className="text-lg sm:text-xl text-white/60 mt-2">plays</p>
+                </div>
+              </FadeUpSection>
+              <FadeUpSection delay={0.4}>
+                <div className="pl-6 lg:pl-8 pt-6 lg:pt-8 border-t border-white/10">
+                  <p className="text-sm text-white/40 uppercase tracking-widest mb-3">
+                    Most Played Track
+                  </p>
+                  <StaggeredText
+                    text={data.top_artists[0]?.top_track || "Unknown"}
+                    className="text-xl sm:text-2xl md:text-3xl text-white font-medium"
+                    offset={20}
+                    delay={0.2}
+                    duration={0.1}
+                    staggerDelay={0.08}
+                    once={true}
+                    as="p"
+                  />
+                  {data.top_artists[0]?.top_track_plays && (
+                    <div className="text-sm text-white/40 mt-2 space-y-1">
+                      <p>
+                        {data.top_artists[0].top_track_plays} plays -{" "}
+                        {data.top_artists[0].top_track_duration_ms && (
+                          <span>
+                            {Math.round(
+                              (data.top_artists[0].top_track_duration_ms *
+                                data.top_artists[0].top_track_plays) /
+                                1000 /
+                                60,
+                            )}
+                            m{" "}
+                            {String(
+                              Math.floor(
+                                ((data.top_artists[0].top_track_duration_ms *
+                                  data.top_artists[0].top_track_plays) /
+                                  1000) %
+                                  60,
+                              ),
+                            ).padStart(2, "0")}
+                            s in total
+                          </span>
+                        )}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </FadeUpSection>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Artists #2 and #3 - Side by Side */}
+      {(data.top_artists[1] || data.top_artists[2]) && (
+        <section className="min-h-screen flex items-center px-8 md:px-16 lg:px-24 py-24 relative overflow-visible">
+          <div className="absolute inset-0 opacity-30">
+            <Metaballs
+              colors={["#00d9ff", "#9900ff"]}
+              count={4}
+              size={0.8}
+              speed={0.2}
+            />
+          </div>
+          <ParallaxBlob
+            className="absolute top-1/3 left-1/4 w-[32rem] h-[32rem] bg-[#00d9ff]/10 rounded-full blur-[140px]"
+            speed={0.4}
+          />
+          <div className="max-w-7xl mx-auto w-full relative z-10">
+            <FadeUpSection>
+              <p className="text-sm uppercase tracking-[0.3em] text-white/40 mb-12 text-center">
+                The Rest of the Podium
+              </p>
+            </FadeUpSection>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12">
+              {/* Artist #2 */}
+              {data.top_artists[1] && (
+                <FadeUpSection delay={0.2}>
+                  <div className="bg-white/5 backdrop-blur-sm rounded-3xl p-6 lg:p-8 border border-white/10">
+                    {data.top_artists[1].image_url && (
+                      <img
+                        src={data.top_artists[1].image_url}
+                        alt={data.top_artists[1].name}
+                        className="w-full aspect-square object-cover rounded-2xl mb-6 brightness-90"
+                      />
+                    )}
+                    <div className="flex items-baseline gap-3 mb-4">
+                      <span className="text-4xl font-bold text-white/30">
+                        2
+                      </span>
+                      <h3 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-white leading-tight">
+                        {data.top_artists[1].name}
+                      </h3>
+                    </div>
+                    <div className="space-y-4">
+                      <div className="flex justify-between items-baseline border-b border-white/10 pb-3">
+                        <span className="text-sm text-white/40">hours</span>
+                        <span className="text-2xl font-bold bg-gradient-to-r from-[#00ffaa] to-[#00ff66] bg-clip-text text-transparent">
+                          <AnimatedNumber
+                            value={Math.round(data.top_artists[1].minutes / 60)}
+                          />
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-baseline border-b border-white/10 pb-3">
+                        <span className="text-sm text-white/40">plays</span>
+                        <span className="text-xl text-white/80">
+                          <AnimatedNumber value={data.top_artists[1].plays} />
+                        </span>
+                      </div>
+                      {data.top_artists[1].top_track && (
+                        <div className="pt-2">
+                          <p className="text-xs text-white/40 uppercase tracking-wider mb-2">
+                            Top Track
+                          </p>
+                          <p className="text-sm text-white/70 leading-snug">
+                            {data.top_artists[1].top_track}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </FadeUpSection>
+              )}
+
+              {/* Artist #3 */}
+              {data.top_artists[2] && (
+                <FadeUpSection delay={0.3}>
+                  <div className="bg-white/5 backdrop-blur-sm rounded-3xl p-6 lg:p-8 border border-white/10">
+                    {data.top_artists[2].image_url && (
+                      <img
+                        src={data.top_artists[2].image_url}
+                        alt={data.top_artists[2].name}
+                        className="w-full aspect-square object-cover rounded-2xl mb-6 brightness-90"
+                      />
+                    )}
+                    <div className="flex items-baseline gap-3 mb-4">
+                      <span className="text-4xl font-bold text-white/30">
+                        3
+                      </span>
+                      <h3 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-white leading-tight">
+                        {data.top_artists[2].name}
+                      </h3>
+                    </div>
+                    <div className="space-y-4">
+                      <div className="flex justify-between items-baseline border-b border-white/10 pb-3">
+                        <span className="text-sm text-white/40">hours</span>
+                        <span className="text-2xl font-bold bg-gradient-to-r from-[#0066ff] to-[#9900ff] bg-clip-text text-transparent">
+                          <AnimatedNumber
+                            value={Math.round(data.top_artists[2].minutes / 60)}
+                          />
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-baseline border-b border-white/10 pb-3">
+                        <span className="text-sm text-white/40">plays</span>
+                        <span className="text-xl text-white/80">
+                          <AnimatedNumber value={data.top_artists[2].plays} />
+                        </span>
+                      </div>
+                      {data.top_artists[2].top_track && (
+                        <div className="pt-2">
+                          <p className="text-xs text-white/40 uppercase tracking-wider mb-2">
+                            Top Track
+                          </p>
+                          <p className="text-sm text-white/70 leading-snug">
+                            {data.top_artists[2].top_track}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </FadeUpSection>
+              )}
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* Track #1 */}
       <section className="max-h-screen flex items-center px-8 md:px-16 lg:px-24 py-32 relative overflow-visible">
         <div className="absolute inset-0 opacity-30">
           <MeshGradient
@@ -649,14 +832,20 @@ function WrappedPage() {
                   as="h2"
                 />
               </FadeUpSection>
-              <FadeUpSection delay={0.4}>
-                <p className="text-lg sm:text-xl md:text-2xl lg:text-3xl text-white/60 mb-8 lg:mb-12">
-                  {data.top_tracks[0]?.artist}{" "}
-                  {data.top_tracks[0]?.release_name
-                    ? `· ${data.top_tracks[0].release_name}`
-                    : ""}
-                </p>
-              </FadeUpSection>
+              <div>
+                <FadeUpSection delay={0.4}>
+                  <p className="text-lg sm:text-xl md:text-2xl lg:text-3xl text-white/60 lg:mb-2">
+                    {data.top_tracks[0]?.artist}{" "}
+                  </p>
+                </FadeUpSection>
+                <FadeUpSection delay={0.4}>
+                  <p className="text-lg sm:text-xl md:text-2xl lg:text-3xl text-white/60 mb-8 lg:mb-12">
+                    {data.top_tracks[0]?.release_name
+                      ? `${data.top_tracks[0].release_name}`
+                      : ""}
+                  </p>
+                </FadeUpSection>
+              </div>
             </div>
             <div className="lg:col-span-2">
               <FadeUpSection delay={0.6}>
@@ -681,6 +870,92 @@ function WrappedPage() {
         </div>
       </section>
 
+      {/* Tracks #2 and #3 - Side by Side */}
+      {(data.top_tracks[1] || data.top_tracks[2]) && (
+        <section className="min-h-screen flex items-center px-8 md:px-16 lg:px-24 py-24 relative overflow-visible">
+          <div className="absolute inset-0 opacity-30">
+            <MeshGradient
+              colors={["#00d9ff", "#ff9500"]}
+              distortion={0.5}
+              speed={0.2}
+            />
+          </div>
+          <div className="max-w-7xl mx-auto w-full relative z-10">
+            <FadeUpSection>
+              <p className="text-sm uppercase tracking-[0.3em] text-white/40 mb-12 text-center">
+                More Repeat Offenders
+              </p>
+            </FadeUpSection>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12">
+              {/* Track #2 */}
+              {data.top_tracks[1] && (
+                <FadeUpSection delay={0.2}>
+                  <div className="bg-white/5 backdrop-blur-sm rounded-3xl p-6 lg:p-8 border border-white/10">
+                    <img
+                      src={`https://coverartarchive.org/release/${data.top_tracks[1].release_mb_id}/front-500.jpg`}
+                      alt={data.top_tracks[1].title}
+                      className="w-full aspect-square object-cover rounded-2xl mb-6 brightness-85"
+                    />
+                    <div className="flex items-baseline gap-3 mb-2">
+                      <span className="text-4xl font-bold text-white/30">
+                        2
+                      </span>
+                      <h3 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-white leading-tight">
+                        {data.top_tracks[1].title}
+                      </h3>
+                    </div>
+                    <p className="text-base text-white/50 mb-6">
+                      {data.top_tracks[1].artist}
+                      {data.top_tracks[1].release_name &&
+                        ` · ${data.top_tracks[1].release_name}`}
+                    </p>
+                    <div className="flex justify-between items-baseline border-t border-white/10 pt-4">
+                      <span className="text-sm text-white/40">plays</span>
+                      <span className="text-3xl font-bold bg-gradient-to-r from-[#00d9ff] to-[#00ffaa] bg-clip-text text-transparent">
+                        <AnimatedNumber value={data.top_tracks[1].plays} />
+                      </span>
+                    </div>
+                  </div>
+                </FadeUpSection>
+              )}
+
+              {/* Track #3 */}
+              {data.top_tracks[2] && (
+                <FadeUpSection delay={0.3}>
+                  <div className="bg-white/5 backdrop-blur-sm rounded-3xl p-6 lg:p-8 border border-white/10">
+                    <img
+                      src={`https://coverartarchive.org/release/${data.top_tracks[2].release_mb_id}/front-500.jpg`}
+                      alt={data.top_tracks[2].title}
+                      className="w-full aspect-square object-cover rounded-2xl mb-6 brightness-85"
+                    />
+                    <div className="flex items-baseline gap-3 mb-2">
+                      <span className="text-4xl font-bold text-white/30">
+                        3
+                      </span>
+                      <h3 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-white leading-tight">
+                        {data.top_tracks[2].title}
+                      </h3>
+                    </div>
+                    <p className="text-base text-white/50 mb-6">
+                      {data.top_tracks[2].artist}
+                      {data.top_tracks[2].release_name &&
+                        ` · ${data.top_tracks[2].release_name}`}
+                    </p>
+                    <div className="flex justify-between items-baseline border-t border-white/10 pt-4">
+                      <span className="text-sm text-white/40">plays</span>
+                      <span className="text-3xl font-bold bg-gradient-to-r from-[#9900ff] to-[#ff9500] bg-clip-text text-transparent">
+                        <AnimatedNumber value={data.top_tracks[2].plays} />
+                      </span>
+                    </div>
+                  </div>
+                </FadeUpSection>
+              )}
+            </div>
+          </div>
+        </section>
+      )}
+
       {/* Top Tracks - Vertical List */}
       <section className="max-h-screen flex items-center px-8 md:px-16 lg:px-24 py-24 pb-32 relative overflow-visible">
         <div className="absolute inset-0 opacity-20">
@@ -701,7 +976,7 @@ function WrappedPage() {
             </p>
           </FadeUpSection>
           <div className="space-y-6">
-            {data.top_tracks.slice(0, 5).map((item, idx) => (
+            {data.top_tracks.slice(0, 10).map((item, idx) => (
               <FadeUpSection key={idx} delay={idx * 0.1}>
                 <div className="flex items-start gap-4 sm:gap-6 md:gap-8 border-b border-white/10 pb-6 relative">
                   <p className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white z-20 pl-1 text-shadow-md min-w-[3rem] sm:min-w-[4rem]">
@@ -771,7 +1046,7 @@ function WrappedPage() {
                 <div className="mb-6 lg:mb-8">
                   <p className="text-[3rem] sm:text-[4rem] md:text-[5rem] lg:text-[6rem] font-bold leading-none bg-gradient-to-r from-[#0066ff] to-[#00d9ff] bg-clip-text text-transparent mb-2">
                     <AnimatedNumber
-                      value={Number(data.weekday_avg_hours.toFixed(1))}
+                      value={Number((data.weekday_avg_minutes / 60).toFixed(1))}
                       duration={2}
                     />
                   </p>
@@ -791,7 +1066,7 @@ function WrappedPage() {
                 <div className="mb-6 lg:mb-8">
                   <p className="text-[3rem] sm:text-[4rem] md:text-[5rem] lg:text-[6rem] font-bold leading-none bg-gradient-to-r from-[#00ffaa] to-[#00ff66] bg-clip-text text-transparent mb-2">
                     <AnimatedNumber
-                      value={Number(data.weekend_avg_hours.toFixed(1))}
+                      value={Number((data.weekend_avg_minutes / 60).toFixed(1))}
                       duration={2}
                     />
                   </p>
@@ -806,23 +1081,23 @@ function WrappedPage() {
           <FadeUpSection delay={0.6}>
             <div className="text-center">
               <p className="text-base sm:text-lg md:text-xl text-white/50 max-w-2xl mx-auto leading-relaxed px-4">
-                {data.weekend_avg_hours + 1 > data.weekday_avg_hours ? (
+                {data.weekend_avg_minutes + 60 > data.weekday_avg_minutes ? (
                   <>
                     Weekends are when you really dig in.{" "}
                     {Math.round(
-                      ((data.weekend_avg_hours - data.weekday_avg_hours) /
-                        data.weekday_avg_hours) *
+                      ((data.weekend_avg_minutes - data.weekday_avg_minutes) /
+                        data.weekday_avg_minutes) *
                         100,
                     )}
                     % more listening time on average.
                   </>
-                ) : data.weekend_avg_hours < data.weekday_avg_hours ? (
+                ) : data.weekend_avg_minutes < data.weekday_avg_minutes ? (
                   <>
                     Weekdays are when you really lock in, with{" "}
                     {Math.round(
                       Math.abs(
-                        (data.weekend_avg_hours - data.weekday_avg_hours) /
-                          data.weekday_avg_hours,
+                        (data.weekend_avg_minutes - data.weekday_avg_minutes) /
+                          data.weekday_avg_minutes,
                       ) * 100,
                     )}
                     % more listening time on average.
@@ -836,6 +1111,341 @@ function WrappedPage() {
               </p>
             </div>
           </FadeUpSection>
+        </div>
+      </section>
+
+      {/* Time Patterns - Radial Charts */}
+      <section className="min-h-screen flex items-center justify-center px-8 py-24 relative overflow-visible">
+        <div className="absolute inset-0 opacity-25">
+          <SimplexNoise
+            colors={["#ff6b6b", "#ff9500"]}
+            softness={0.7}
+            speed={0.18}
+          />
+        </div>
+        <ParallaxBlob
+          className="absolute top-1/3 right-1/4 w-[36rem] h-[36rem] bg-[#ff9500]/10 rounded-full blur-[140px]"
+          speed={0.3}
+        />
+        <div className="max-w-7xl mx-auto w-full relative z-10">
+          <FadeUpSection>
+            <p className="text-sm uppercase tracking-[0.3em] text-white/40 mb-16 text-center">
+              When You Listen
+            </p>
+          </FadeUpSection>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-16">
+            {/* Monthly Radial Chart */}
+            <FadeUpSection delay={0.1}>
+              <div className="bg-white/5 backdrop-blur-sm rounded-3xl p-6 lg:p-10 border border-white/10">
+                <p className="text-xs uppercase tracking-wider text-white/40 mb-8 text-center">
+                  Plays by Month
+                </p>
+                <div className="relative aspect-square max-w-md mx-auto">
+                  <svg viewBox="0 0 400 400" className="w-full h-full">
+                    {(() => {
+                      // Calculate monthly totals
+                      const monthlyPlays = Array(12).fill(0);
+                      data.activity_graph.forEach((day) => {
+                        const month = new Date(day.date).getMonth();
+                        monthlyPlays[month] += day.plays;
+                      });
+
+                      const maxMonthlyPlays = Math.max(...monthlyPlays);
+                      const monthNames = [
+                        "Jan",
+                        "Feb",
+                        "Mar",
+                        "Apr",
+                        "May",
+                        "Jun",
+                        "Jul",
+                        "Aug",
+                        "Sep",
+                        "Oct",
+                        "Nov",
+                        "Dec",
+                      ];
+                      const centerX = 200;
+                      const centerY = 200;
+                      const maxRadius = 140;
+                      const minRadius = 40;
+                      const angleStep = (2 * Math.PI) / 12;
+
+                      return monthlyPlays.map((plays, idx) => {
+                        // Skip months with no plays
+                        const angle = angleStep * idx - Math.PI / 2; // Start at top
+                        const normalizedPlays =
+                          maxMonthlyPlays > 0 ? plays / maxMonthlyPlays : 0;
+                        const radius =
+                          minRadius + normalizedPlays * (maxRadius - minRadius);
+
+                        const x = centerX + radius * Math.cos(angle);
+                        const y = centerY + radius * Math.sin(angle);
+
+                        // Calculate petal path
+                        const nextAngle = angle + angleStep;
+                        const angleOffset = angleStep * 0.4;
+
+                        const x1 = centerX + minRadius * Math.cos(angle);
+                        const y1 = centerY + minRadius * Math.sin(angle);
+                        const x2 = x;
+                        const y2 = y;
+                        const x3 =
+                          centerX + minRadius * Math.cos(angle + angleStep);
+                        const y3 =
+                          centerY + minRadius * Math.sin(angle + angleStep);
+
+                        // Control points for smooth curves
+                        const midAngle = angle + angleStep / 2;
+                        const outerRadius = radius;
+                        const ctrlX =
+                          centerX + outerRadius * Math.cos(midAngle);
+                        const ctrlY =
+                          centerY + outerRadius * Math.sin(midAngle);
+
+                        const pathData = `
+                          M ${x1} ${y1}
+                          L ${x2} ${y2}
+                          Q ${ctrlX} ${ctrlY} ${centerX + radius * Math.cos(nextAngle)} ${centerY + radius * Math.sin(nextAngle)}
+                          L ${x3} ${y3}
+                          A ${minRadius} ${minRadius} 0 0 0 ${x1} ${y1}
+                        `;
+
+                        // Label position
+                        const labelRadius = maxRadius + 30;
+                        const labelX = centerX + labelRadius * Math.cos(angle);
+                        const labelY = centerY + labelRadius * Math.sin(angle);
+
+                        return (
+                          <g key={idx}>
+                            {plays === 0 ? null : (
+                              <motion.path
+                                d={pathData}
+                                fill="#ff9500"
+                                opacity={0.7}
+                                stroke="rgba(255, 149, 0, 0.5)"
+                                strokeWidth="1"
+                                initial={{ opacity: 0 }}
+                                whileInView={{ opacity: 0.7 }}
+                                viewport={{ once: true }}
+                                transition={{
+                                  delay: idx * 0.05,
+                                  duration: 0.6,
+                                  ease: "easeOut",
+                                }}
+                              />
+                            )}
+                            <motion.text
+                              x={labelX}
+                              y={labelY}
+                              textAnchor="middle"
+                              dominantBaseline="middle"
+                              className="text-sm fill-white/60"
+                              initial={{ opacity: 0 }}
+                              whileInView={{ opacity: 1 }}
+                              viewport={{ once: true }}
+                              transition={{ delay: idx * 0.05 + 0.3 }}
+                            >
+                              {monthNames[idx]}
+                            </motion.text>
+                          </g>
+                        );
+                      });
+                    })()}
+                  </svg>
+                </div>
+                <FadeUpSection delay={0.8}>
+                  <div className="mt-6 pt-6 border-t border-white/10">
+                    <p className="text-sm text-white/50 text-center leading-relaxed">
+                      {(() => {
+                        const monthlyPlays = Array(12).fill(0);
+                        data.activity_graph.forEach((day) => {
+                          const month = new Date(day.date).getMonth();
+                          monthlyPlays[month] += day.plays;
+                        });
+                        const maxMonthlyPlays = Math.max(...monthlyPlays);
+                        const peakMonth = monthlyPlays.indexOf(maxMonthlyPlays);
+                        const monthNames = [
+                          "January",
+                          "February",
+                          "March",
+                          "April",
+                          "May",
+                          "June",
+                          "July",
+                          "August",
+                          "September",
+                          "October",
+                          "November",
+                          "December",
+                        ];
+                        return `${monthNames[peakMonth]} was your heaviest month`;
+                      })()}
+                    </p>
+                  </div>
+                </FadeUpSection>
+              </div>
+            </FadeUpSection>
+
+            {/* Hourly Radial Chart */}
+            <FadeUpSection delay={0.2}>
+              <div className="bg-white/5 backdrop-blur-sm rounded-3xl p-6 lg:p-10 border border-white/10">
+                <p className="text-xs uppercase tracking-wider text-white/40 mb-8 text-center">
+                  Plays by Hour
+                </p>
+                <div className="relative aspect-square max-w-md mx-auto">
+                  <svg viewBox="0 0 400 400" className="w-full h-full">
+                    {(() => {
+                      const centerX = 200;
+                      const centerY = 200;
+                      const maxRadius = 140;
+                      const minRadius = 40;
+                      const angleStep = (2 * Math.PI) / 24;
+
+                      // Convert to local time and create array
+                      const localHourlyPlays = data.hourly_distribution.map(
+                        (plays, utcHour) => {
+                          const localHour =
+                            (utcHour -
+                              new Date().getTimezoneOffset() / 60 +
+                              24) %
+                            24;
+                          return { hour: localHour, plays };
+                        },
+                      );
+
+                      // Sort by local hour
+                      localHourlyPlays.sort((a, b) => a.hour - b.hour);
+
+                      const maxPlays = Math.max(
+                        ...localHourlyPlays.map((h) => h.plays),
+                      );
+
+                      return localHourlyPlays.map((hourData, idx) => {
+                        const angle = angleStep * idx - Math.PI / 2; // Start at top (midnight)
+                        const normalizedPlays =
+                          maxPlays > 0 ? hourData.plays / maxPlays : 0;
+                        const radius =
+                          minRadius + normalizedPlays * (maxRadius - minRadius);
+
+                        const nextAngle = angle + angleStep;
+
+                        const x1 = centerX + minRadius * Math.cos(angle);
+                        const y1 = centerY + minRadius * Math.sin(angle);
+                        const x2 = centerX + radius * Math.cos(angle);
+                        const y2 = centerY + radius * Math.sin(angle);
+                        const x3 =
+                          centerX + minRadius * Math.cos(angle + angleStep);
+                        const y3 =
+                          centerY + minRadius * Math.sin(angle + angleStep);
+
+                        const midAngle = angle + angleStep / 2;
+                        const outerRadius = radius;
+                        const ctrlX =
+                          centerX + outerRadius * Math.cos(midAngle);
+                        const ctrlY =
+                          centerY + outerRadius * Math.sin(midAngle);
+
+                        const pathData = `
+                          M ${x1} ${y1}
+                          L ${x2} ${y2}
+                          Q ${ctrlX} ${ctrlY} ${centerX + radius * Math.cos(nextAngle)} ${centerY + radius * Math.sin(nextAngle)}
+                          L ${x3} ${y3}
+                          A ${minRadius} ${minRadius} 0 0 0 ${x1} ${y1}
+                        `;
+
+                        // Show labels for every 3rd hour (0, 3, 6, 9, 12, 15, 18, 21)
+                        const showLabel = hourData.hour % 3 === 0;
+                        const labelRadius = maxRadius + 30;
+                        const labelX = centerX + labelRadius * Math.cos(angle);
+                        const labelY = centerY + labelRadius * Math.sin(angle);
+                        const hourLabel =
+                          hourData.hour === 0
+                            ? "12am"
+                            : hourData.hour < 12
+                              ? `${hourData.hour}`
+                              : hourData.hour === 12
+                                ? "12pm"
+                                : `${hourData.hour - 12}`;
+
+                        return (
+                          <g key={idx}>
+                            {hourData.plays === 0 ? null : (
+                              <motion.path
+                                d={pathData}
+                                fill="#00d9ff"
+                                opacity={0.7}
+                                stroke="rgba(0, 217, 255, 0.5)"
+                                strokeWidth="0.5"
+                                initial={{ opacity: 0 }}
+                                whileInView={{ opacity: 0.7 }}
+                                viewport={{ once: true }}
+                                transition={{
+                                  delay: idx * 0.02,
+                                  duration: 0.4,
+                                  ease: "easeOut",
+                                }}
+                              />
+                            )}
+                            {showLabel && (
+                              <motion.text
+                                x={labelX}
+                                y={labelY}
+                                textAnchor="middle"
+                                dominantBaseline="middle"
+                                className="text-sm fill-white/60"
+                                initial={{ opacity: 0 }}
+                                whileInView={{ opacity: 1 }}
+                                viewport={{ once: true }}
+                                transition={{ delay: idx * 0.02 + 0.3 }}
+                              >
+                                {hourLabel}
+                              </motion.text>
+                            )}
+                          </g>
+                        );
+                      });
+                    })()}
+                  </svg>
+                </div>
+                <FadeUpSection delay={0.8}>
+                  <div className="mt-6 pt-6 border-t border-white/10">
+                    <p className="text-sm text-white/50 text-center leading-relaxed">
+                      {(() => {
+                        const maxPlays = Math.max(...data.hourly_distribution);
+                        const peakUtcHour =
+                          data.hourly_distribution.indexOf(maxPlays);
+                        const peakLocalHour =
+                          (peakUtcHour -
+                            new Date().getTimezoneOffset() / 60 +
+                            24) %
+                          24;
+                        const peakDisplay =
+                          peakLocalHour === 0
+                            ? "midnight"
+                            : peakLocalHour < 12
+                              ? `${peakLocalHour}am`
+                              : peakLocalHour === 12
+                                ? "noon"
+                                : `${peakLocalHour - 12}pm`;
+
+                        if (peakLocalHour >= 0 && peakLocalHour < 6) {
+                          return `Peak at ${peakDisplay} - late night sessions`;
+                        } else if (peakLocalHour >= 6 && peakLocalHour < 12) {
+                          return `Peak at ${peakDisplay} - morning energy`;
+                        } else if (peakLocalHour >= 12 && peakLocalHour < 18) {
+                          return `Peak at ${peakDisplay} - afternoon vibes`;
+                        } else {
+                          return `Peak at ${peakDisplay} - evening hours`;
+                        }
+                      })()}
+                    </p>
+                  </div>
+                </FadeUpSection>
+              </div>
+            </FadeUpSection>
+          </div>
         </div>
       </section>
 
@@ -894,11 +1504,14 @@ function WrappedPage() {
                 </p>
                 {/* Desktop: horizontal layout */}
                 <div className="hidden lg:block overflow-x-auto">
-                  <div className="inline-flex flex-col gap-1.5 min-w-full">
+                  <div className="inline-flex flex-col gap-1.5 min-w-full justify-center items-center">
                     {/* Month labels */}
                     <div className="flex gap-1.5">
                       <div className="w-8" />
-                      {generateCalendarWeeks(data.year).map((week, weekIdx) => {
+                      {generateCalendarWeeks(
+                        data.year,
+                        data.activity_graph,
+                      ).map((week, weekIdx) => {
                         const firstDate = week[0];
                         const isFirstWeekOfMonth = firstDate.getDate() <= 7;
                         const monthNames = [
@@ -931,33 +1544,33 @@ function WrappedPage() {
                       (day, dayIdx) => (
                         <div key={dayIdx} className="flex gap-1.5 items-center">
                           <div className="w-8 text-xs text-white/30">{day}</div>
-                          {generateCalendarWeeks(data.year).map(
-                            (week, weekIdx) => {
-                              const date = week[dayIdx];
-                              const bgColor = getActivityColor(
-                                date,
-                                data.activity_graph,
-                              );
-                              const activity = data.activity_graph.find(
-                                (a) =>
-                                  a.date === date.toISOString().split("T")[0],
-                              );
-                              return (
-                                <motion.div
-                                  key={weekIdx}
-                                  className={`w-3.5 h-3.5 rounded-sm ${bgColor}`}
-                                  initial={{ opacity: 0, scale: 0 }}
-                                  animate={{ opacity: 1, scale: 1 }}
-                                  transition={{
-                                    duration: 0.2,
-                                    delay:
-                                      0.4 + weekIdx * 0.005 + dayIdx * 0.01,
-                                  }}
-                                  title={`${date.toDateString()}: ${activity?.hours.toFixed(1) || 0} hours`}
-                                />
-                              );
-                            },
-                          )}
+                          {generateCalendarWeeks(
+                            data.year,
+                            data.activity_graph,
+                          ).map((week, weekIdx) => {
+                            const date = week[dayIdx];
+                            const bgColor = getActivityColor(
+                              date,
+                              data.activity_graph,
+                            );
+                            const activity = data.activity_graph.find(
+                              (a) =>
+                                a.date === date.toISOString().split("T")[0],
+                            );
+                            return (
+                              <motion.div
+                                key={weekIdx}
+                                className={`w-3.5 h-3.5 rounded-sm ${bgColor}`}
+                                initial={{ opacity: 0, scale: 0 }}
+                                animate={{ opacity: 1, scale: 1 }}
+                                transition={{
+                                  duration: 0.2,
+                                  delay: 0.4 + weekIdx * 0.005 + dayIdx * 0.01,
+                                }}
+                                title={`${date.toDateString()}: ${((activity?.minutes || 0) / 60).toFixed(1)} hours`}
+                              />
+                            );
+                          })}
                         </div>
                       ),
                     )}
@@ -969,7 +1582,10 @@ function WrappedPage() {
                     {/* Month labels column */}
                     <div className="flex flex-col gap-1.5">
                       <div className="h-6" />
-                      {generateCalendarWeeks(data.year).map((week, weekIdx) => {
+                      {generateCalendarWeeks(
+                        data.year,
+                        data.activity_graph,
+                      ).map((week, weekIdx) => {
                         const firstDate = week[0];
                         const isFirstWeekOfMonth = firstDate.getDate() <= 7;
                         const monthNames = [
@@ -1001,36 +1617,36 @@ function WrappedPage() {
                     {["Mon", "", "Wed", "", "Fri", "", "Sun"].map(
                       (day, dayIdx) => (
                         <div key={dayIdx} className="flex flex-col gap-1.5">
-                          <div className="h-6 text-xs text-white/30 flex items-center justify-center">
+                          <div className="h-6 text-xs text-white/30 flex items-center justify-center -rotate-45 -mr-4">
                             {day}
                           </div>
-                          {generateCalendarWeeks(data.year).map(
-                            (week, weekIdx) => {
-                              const date = week[dayIdx];
-                              const bgColor = getActivityColor(
-                                date,
-                                data.activity_graph,
-                              );
-                              const activity = data.activity_graph.find(
-                                (a) =>
-                                  a.date === date.toISOString().split("T")[0],
-                              );
-                              return (
-                                <motion.div
-                                  key={weekIdx}
-                                  className={`w-3.5 h-3.5 rounded-sm ${bgColor}`}
-                                  initial={{ opacity: 0, scale: 0 }}
-                                  animate={{ opacity: 1, scale: 1 }}
-                                  transition={{
-                                    duration: 0.2,
-                                    delay:
-                                      0.4 + weekIdx * 0.005 + dayIdx * 0.01,
-                                  }}
-                                  title={`${date.toDateString()}: ${activity?.hours.toFixed(1) || 0} hours`}
-                                />
-                              );
-                            },
-                          )}
+                          {generateCalendarWeeks(
+                            data.year,
+                            data.activity_graph,
+                          ).map((week, weekIdx) => {
+                            const date = week[dayIdx];
+                            const bgColor = getActivityColor(
+                              date,
+                              data.activity_graph,
+                            );
+                            const activity = data.activity_graph.find(
+                              (a) =>
+                                a.date === date.toISOString().split("T")[0],
+                            );
+                            return (
+                              <motion.div
+                                key={weekIdx}
+                                className={`w-6 h-6 rounded-sm ${bgColor}`}
+                                initial={{ opacity: 0, scale: 0 }}
+                                animate={{ opacity: 1, scale: 1 }}
+                                transition={{
+                                  duration: 0.2,
+                                  delay: 0.4 + weekIdx * 0.005 + dayIdx * 0.01,
+                                }}
+                                title={`${date.toDateString()}: ${((activity?.minutes || 0) / 60).toFixed(1)} hours`}
+                              />
+                            );
+                          })}
                         </div>
                       ),
                     )}
@@ -1102,8 +1718,8 @@ function WrappedPage() {
                     value={Math.round(
                       (data.top_artists
                         .slice(0, 3)
-                        .reduce((acc, a) => acc + a.hours, 0) /
-                        data.total_hours) *
+                        .reduce((acc, a) => acc + a.minutes, 0) /
+                        data.total_minutes) *
                         100,
                     )}
                     duration={2}
@@ -1157,7 +1773,7 @@ function WrappedPage() {
                         <span className="text-sm text-white/40">hours</span>
                         <span className="text-lg sm:text-xl font-bold bg-gradient-to-r from-[#9900ff] to-[#ff0099] bg-clip-text text-transparent">
                           <AnimatedNumber
-                            value={Math.round(artist.hours)}
+                            value={Math.round(artist.minutes / 60)}
                             duration={1.5}
                           />
                         </span>
@@ -1179,8 +1795,8 @@ function WrappedPage() {
               {Math.round(
                 (data.top_artists
                   .slice(0, 3)
-                  .reduce((acc, a) => acc + a.hours, 0) /
-                  data.total_hours) *
+                  .reduce((acc, a) => acc + a.minutes, 0) /
+                  data.total_minutes) *
                   100,
               ) >= 25
                 ? "You know what you like, and you really commit to it."
@@ -1207,7 +1823,7 @@ function WrappedPage() {
           </FadeUpSection>
           <FadeUpSection delay={0.2}>
             <StaggeredText
-              text={`${Math.round(data.total_hours)} hours.`}
+              text={`${Math.round(data.total_minutes / 60)} hours.`}
               className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl xl:text-7xl text-white/90 mb-6 font-light"
               offset={30}
               delay={0.1}
@@ -1242,13 +1858,380 @@ function WrappedPage() {
             />
           </FadeUpSection>
           <FadeUpSection delay={0.8}>
-            <p className="text-lg sm:text-xl md:text-2xl text-white/50 leading-relaxed max-w-2xl mx-auto px-4">
+            <p className="text-lg sm:text-xl md:text-2xl text-white/50 leading-relaxed max-w-2xl mx-auto px-4 mb-12">
               Thanks for making 2025 unforgettable,
               <br />
               from <span className="font-hand">Matt</span> and{" "}
               <span className="font-hand">Natalie</span>.
             </p>
           </FadeUpSection>
+
+          {/* Share buttons */}
+          <FadeUpSection delay={1.0}>
+            <div className="flex flex-wrap gap-4 justify-center">
+              <button
+                onClick={() =>
+                  generateShareImage(
+                    // @ts-ignore
+                    topStatsCardRef,
+                    `wrapped-${data.year}-stats.png`,
+                  )
+                }
+                disabled={generatingImage}
+                className="px-6 py-3 bg-white/10 hover:bg-white/20 border border-white/20 rounded-full text-white text-sm uppercase tracking-wider transition-colors disabled:opacity-50"
+              >
+                Share Stats
+              </button>
+              <button
+                onClick={() =>
+                  generateShareImage(
+                    // @ts-ignore
+                    topArtistCardRef,
+                    `wrapped-${data.year}-artist.png`,
+                  )
+                }
+                disabled={generatingImage}
+                className="px-6 py-3 bg-white/10 hover:bg-white/20 border border-white/20 rounded-full text-white text-sm uppercase tracking-wider transition-colors disabled:opacity-50"
+              >
+                Share Top Artist
+              </button>
+              <button
+                onClick={() =>
+                  generateShareImage(
+                    // @ts-ignore
+                    activityCardRef,
+                    `wrapped-${data.year}-activity.png`,
+                  )
+                }
+                disabled={generatingImage}
+                className="px-6 py-3 bg-white/10 hover:bg-white/20 border border-white/20 rounded-full text-white text-sm uppercase tracking-wider transition-colors disabled:opacity-50"
+              >
+                Share Activity
+              </button>
+              <button
+                onClick={() =>
+                  generateShareImage(
+                    // @ts-ignore
+                    overallCardRef,
+                    `wrapped-${data.year}-overall.png`,
+                  )
+                }
+                disabled={generatingImage}
+                className="px-6 py-3 bg-white/10 hover:bg-white/20 border border-white/20 rounded-full text-white text-sm uppercase tracking-wider transition-colors disabled:opacity-50"
+              >
+                Share Overall
+              </button>
+            </div>
+          </FadeUpSection>
+        </div>
+      </section>
+
+      {/* Share cards - visible for development */}
+      <section className="py-24 px-8 bg-[#0a0a0a]">
+        <div className="max-w-7xl mx-auto">
+          <h2 className="text-4xl font-bold text-white mb-12">
+            Share Cards Preview
+          </h2>
+          <div className="space-y-12">
+            {/* Top Stats Card */}
+            <div>
+              <h3 className="text-white text-xl mb-4">Top Stats (1080x1080)</h3>
+              <div
+                ref={topStatsCardRef}
+                className="w-[1080px] h-[1080px] bg-[#0a0a0a] p-16 flex flex-col justify-between border border-white/20"
+                style={{ transform: "scale(0.5)", transformOrigin: "top left" }}
+              >
+                <div>
+                  <p className="text-3xl uppercase tracking-[0.3em] text-white/40 mb-12">
+                    {data.year} Wrapped
+                  </p>
+                  <h2 className="text-9xl font-bold text-white mb-16">
+                    {Math.round(data.total_minutes).toLocaleString()}
+                  </h2>
+                  <p className="text-5xl text-white/80 mb-24">
+                    minutes of music
+                  </p>
+
+                  <div className="space-y-8">
+                    <div className="flex justify-between items-baseline border-b border-white/10 pb-6">
+                      <span className="text-3xl text-white/60">
+                        Total plays
+                      </span>
+                      <span className="text-5xl font-bold text-white">
+                        {data.total_plays.toLocaleString()}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-baseline border-b border-white/10 pb-6">
+                      <span className="text-3xl text-white/60">
+                        Artists played
+                      </span>
+                      <span
+                        className="text-5xl font-bold"
+                        style={{ color: "#00ffaa" }}
+                      >
+                        {data.new_artists_count}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-baseline border-b border-white/10 pb-6">
+                      <span className="text-3xl text-white/60">
+                        Longest streak
+                      </span>
+                      <span
+                        className="text-5xl font-bold"
+                        style={{ color: "#ff0099" }}
+                      >
+                        {data.longest_streak} days
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="text-center">
+                  <p className="text-2xl text-white/40">yearinmusic.teal.fm</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Top Artist Card */}
+            <div>
+              <h3 className="text-white text-xl mb-4">
+                Top Artist (1080x1080)
+              </h3>
+              <div
+                ref={topArtistCardRef}
+                className="w-[1080px] h-[1080px] bg-[#0a0a0a] p-16 flex flex-col border border-white/20"
+                style={{ transform: "scale(0.5)", transformOrigin: "top left" }}
+              >
+                <div>
+                  <p className="text-3xl uppercase tracking-[0.3em] text-white/40 mb-12">
+                    Your Top Artist · {data.year}
+                  </p>
+                </div>
+
+                <div className="flex-1 flex flex-col justify-center">
+                  {data.top_artists[0]?.image_url && (
+                    <img
+                      src={data.top_artists[0].image_url}
+                      alt={data.top_artists[0].name}
+                      className="w-96 h-96 object-cover rounded-3xl mx-auto mb-12 brightness-90"
+                    />
+                  )}
+                  <h2 className="text-7xl font-bold text-white text-center mb-16 leading-tight">
+                    {data.top_artists[0]?.name}
+                  </h2>
+
+                  <div className="flex gap-16 justify-center">
+                    <div className="text-center">
+                      <p
+                        className="text-6xl font-bold mb-3"
+                        style={{ color: "#00d9ff" }}
+                      >
+                        {Math.round((data.top_artists[0]?.minutes || 0) / 60)}
+                      </p>
+                      <p className="text-2xl text-white/60">hours</p>
+                    </div>
+                    <div className="text-center">
+                      <p
+                        className="text-6xl font-bold mb-3"
+                        style={{ color: "#ff0099" }}
+                      >
+                        {data.top_artists[0]?.plays || 0}
+                      </p>
+                      <p className="text-2xl text-white/60">plays</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="text-center">
+                  <p className="text-2xl text-white/40">yearinmusic.teal.fm</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Activity Graph Card */}
+            <div>
+              <h3 className="text-white text-xl mb-4">Activity (1920x1080)</h3>
+              <div
+                ref={activityCardRef}
+                className="w-[1920px] h-[1080px] bg-[#0a0a0a] p-16 flex flex-col border border-white/20"
+                style={{ transform: "scale(0.4)", transformOrigin: "top left" }}
+              >
+                <div>
+                  <p className="text-3xl uppercase tracking-[0.3em] text-white/40 mb-12">
+                    {data.year} Activity
+                  </p>
+                </div>
+
+                <div className="flex-1 flex flex-col justify-center">
+                  <div className="bg-white/5  rounded-3xl p-12 border border-white/10">
+                    <div className="inline-flex flex-col gap-1.5 min-w-full justify-center items-center">
+                      {/* Month labels */}
+                      <div className="flex gap-1.5">
+                        <div className="w-8" />
+                        {generateCalendarWeeks(
+                          data.year,
+                          data.activity_graph,
+                        ).map((week, weekIdx) => {
+                          const firstDate = week[0];
+                          const isFirstWeekOfMonth = firstDate.getDate() <= 7;
+                          const monthNames = [
+                            "Jan",
+                            "Feb",
+                            "Mar",
+                            "Apr",
+                            "May",
+                            "Jun",
+                            "Jul",
+                            "Aug",
+                            "Sep",
+                            "Oct",
+                            "Nov",
+                            "Dec",
+                          ];
+                          return (
+                            <div
+                              key={weekIdx}
+                              className="w-8 text-2xl -rotate-25 pl-4 text-white/30"
+                            >
+                              {isFirstWeekOfMonth &&
+                                monthNames[firstDate.getMonth()]}
+                            </div>
+                          );
+                        })}
+                      </div>
+                      {/* Day rows */}
+                      {["Mon", "", "Wed", "", "Fri", "", "Sun"].map(
+                        (day, dayIdx) => (
+                          <div
+                            key={dayIdx}
+                            className="flex gap-1.5 items-center"
+                          >
+                            <div className="w-12 text-lg text-white/30">
+                              {day}
+                            </div>
+                            {generateCalendarWeeks(
+                              data.year,
+                              data.activity_graph,
+                            ).map((week, weekIdx) => {
+                              const date = week[dayIdx];
+                              const bgColor = getActivityColor(
+                                date,
+                                data.activity_graph,
+                              );
+                              const activity = data.activity_graph.find(
+                                (a) =>
+                                  a.date === date.toISOString().split("T")[0],
+                              );
+                              return (
+                                <div
+                                  key={weekIdx}
+                                  className={`w-8 h-8 rounded ${bgColor}`}
+                                  title={`${date.toDateString()}: ${((activity?.minutes || 0) / 60).toFixed(1)} hours`}
+                                />
+                              );
+                            })}
+                          </div>
+                        ),
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="mt-16 text-center">
+                    <p className="text-5xl font-bold text-white mb-6">
+                      {data.days_active} days active
+                    </p>
+                    <p className="text-3xl text-white/60">
+                      {data.longest_streak} day streak
+                    </p>
+                  </div>
+                </div>
+
+                <div className="text-center">
+                  <p className="text-2xl text-white/40">yearinmusic.teal.fm</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Overall Card */}
+            <div>
+              <h3 className="text-white text-xl mb-4">
+                Overall Top 5s (1080x1080)
+              </h3>
+              <div
+                ref={overallCardRef}
+                className="w-[1080px] h-[1080px] bg-[#0a0a0a] p-16 flex flex-col border border-white/20"
+                style={{ transform: "scale(0.5)", transformOrigin: "top left" }}
+              >
+                <div>
+                  <p className="text-3xl uppercase tracking-[0.3em] text-white/40 mb-12">
+                    {data.year} year in music
+                  </p>
+                  <h2 className="text-6xl font-bold text-white mb-16">
+                    Your Top 3
+                  </h2>
+                </div>
+
+                <div className="flex-1 space-y-12">
+                  {/* Top Artist */}
+                  <div className="bg-white/5  rounded-3xl p-10 border border-white/10">
+                    <div className="flex items-center gap-8">
+                      {data.top_artists[0]?.image_url && (
+                        <img
+                          src={data.top_artists[0].image_url}
+                          alt={data.top_artists[0].name}
+                          className="w-32 h-32 object-cover rounded-2xl brightness-90"
+                        />
+                      )}
+                      <div className="flex-1">
+                        <p className="text-xl text-white/40 uppercase tracking-wider mb-3">
+                          Top Artist
+                        </p>
+                        <h3 className="text-5xl font-bold text-white mb-4">
+                          {data.top_artists[0]?.name}
+                        </h3>
+                        <p className="text-3xl text-white/60">
+                          {Math.round((data.top_artists[0]?.minutes || 0) / 60)}{" "}
+                          hours
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Top Track */}
+                  <div className="bg-white/5  rounded-3xl p-10 border border-white/10">
+                    <div className="flex items-center gap-8">
+                      <img
+                        src={`https://coverartarchive.org/release/${data.top_tracks[0]?.release_mb_id}/front-500.jpg`}
+                        alt={data.top_tracks[0]?.title}
+                        className="w-32 h-32 object-cover rounded-2xl brightness-85"
+                      />
+                      <div className="flex-1">
+                        <p className="text-xl text-white/40 uppercase tracking-wider mb-3">
+                          Top Track
+                        </p>
+                        <h3 className="text-4xl font-bold text-white mb-2 leading-tight">
+                          {data.top_tracks[0]?.title}
+                        </h3>
+                        <p className="text-2xl text-white/60">
+                          {data.top_tracks[0]?.artist}
+                        </p>
+                        <p
+                          className="text-3xl font-bold mt-4"
+                          style={{ color: "#ff0099" }}
+                        >
+                          {data.top_tracks[0]?.plays} plays
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="text-center mt-8">
+                  <p className="text-2xl text-white/40">yearinmusic.teal.fm</p>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </section>
     </div>

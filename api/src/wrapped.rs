@@ -13,7 +13,7 @@ pub struct TrackMetadata {
 
 #[derive(Debug)]
 pub struct WrappedStats {
-    pub total_hours: f64,
+    pub total_minutes: f64,
     pub total_plays: u32,
     pub avg_track_length_ms: i32,
     pub listening_diversity: f64,       // unique tracks / total plays
@@ -25,8 +25,8 @@ pub struct WrappedStats {
     pub top_track_per_artist: HashMap<String, (String, u32, i32)>, // artist_name -> (track_title, play_count, duration_ms)
     pub new_artists_count: u32,
     pub daily_plays: HashMap<NaiveDate, u32>,
-    pub weekday_avg_hours: f64,
-    pub weekend_avg_hours: f64,
+    pub weekday_avg_minutes: f64,
+    pub weekend_avg_minutes: f64,
     pub longest_streak: u32,
     pub days_active: u32,
 }
@@ -61,9 +61,9 @@ pub async fn calculate_wrapped_stats(
                 let name = a.get("name")?.as_str()?.to_string();
                 let plays = a.get("play_count")?.as_i64()? as u32;
                 let duration_ms = a.get("total_duration_ms")?.as_i64()? as f64;
-                let hours = duration_ms / (1000.0 * 3600.0);
+                let minutes = duration_ms / (1000.0 * 60.0);
                 let mb_id = a.get("mb_id").and_then(|v| v.as_str()).map(String::from);
-                Some((name, plays, hours, mb_id))
+                Some((name, plays, minutes, mb_id))
             })
             .collect()
     } else {
@@ -148,7 +148,7 @@ pub async fn calculate_wrapped_stats(
     }
 
     // Calculate derived metrics
-    let total_hours = total_duration_ms as f64 / (1000.0 * 3600.0);
+    let total_minutes = total_duration_ms as f64 / (1000.0 * 60.0);
     let total_plays: u32 = daily_plays.values().sum();
     let days_active = daily_plays.len() as u32;
 
@@ -321,19 +321,19 @@ pub async fn calculate_wrapped_stats(
     .fetch_one(pool)
     .await?;
 
-    let weekday_avg_hours = if weekday_days > 0 {
+    let weekday_avg_minutes = if weekday_days > 0 {
         let weekday_ms: Option<i64> = weekday_stats.get("total_duration_ms");
         weekday_ms
-            .map(|ms| ms as f64 / (1000.0 * 3600.0) / weekday_days as f64)
+            .map(|ms| ms as f64 / (1000.0 * 60.0) / weekday_days as f64)
             .unwrap_or(0.0)
     } else {
         0.0
     };
 
-    let weekend_avg_hours = if weekend_days > 0 {
+    let weekend_avg_minutes = if weekend_days > 0 {
         let weekend_ms: Option<i64> = weekend_stats.get("total_duration_ms");
         weekend_ms
-            .map(|ms| ms as f64 / (1000.0 * 3600.0) / weekend_days as f64)
+            .map(|ms| ms as f64 / (1000.0 * 60.0) / weekend_days as f64)
             .unwrap_or(0.0)
     } else {
         0.0
@@ -375,15 +375,15 @@ pub async fn calculate_wrapped_stats(
     }
 
     Ok(WrappedStats {
-        total_hours,
+        total_minutes,
         total_plays,
         top_artists,
         top_tracks,
         top_track_per_artist,
         new_artists_count,
         daily_plays,
-        weekday_avg_hours,
-        weekend_avg_hours,
+        weekday_avg_minutes,
+        weekend_avg_minutes,
         longest_streak,
         days_active,
         avg_track_length_ms,

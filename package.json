@@ -18,6 +18,7 @@
     "@tanstack/react-router-devtools": "^1.132.0",
     "@tanstack/router-plugin": "^1.132.0",
     "framer-motion": "^12.23.25",
+    "html2canvas-pro": "^1.5.13",
     "lucide-react": "^0.545.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",

@@ -31,14 +31,14 @@ struct AppState {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct WrappedData {
     year: u32,
-    total_hours: f64,
+    total_minutes: f64,
     total_plays: u32,
     top_artists: Vec<TopArtist>,
     top_tracks: Vec<TopTrack>,
     new_artists_count: u32,
     activity_graph: Vec<DayActivity>,
-    weekday_avg_hours: f64,
-    weekend_avg_hours: f64,
+    weekday_avg_minutes: f64,
+    weekend_avg_minutes: f64,
     longest_streak: u32,
     days_active: u32,
     pub avg_track_length_ms: i32,
@@ -62,7 +62,7 @@ struct MusicBuddy {
 struct TopArtist {
     name: String,
     plays: u32,
-    hours: f64,
+    minutes: f64,
     #[serde(skip_serializing_if = "Option::is_none")]
     mb_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -92,7 +92,7 @@ struct TopTrack {
 struct DayActivity {
     date: String,
     plays: u32,
-    hours: f64,
+    minutes: f64,
 }
 
 #[derive(Debug, Deserialize)]
@@ -157,7 +157,7 @@ async fn get_wrapped(
         })?;
 
     let mut top_artists = Vec::new();
-    for (name, plays, hours, mb_id) in stats.top_artists {
+    for (name, plays, minutes, mb_id) in stats.top_artists {
         let (top_track, top_track_plays, top_track_duration_ms) = stats
             .top_track_per_artist
             .get(&name)
@@ -198,7 +198,7 @@ async fn get_wrapped(
         top_artists.push(TopArtist {
             name,
             plays,
-            hours,
+            minutes,
             mb_id,
             image_url,
             top_track,
@@ -220,15 +220,18 @@ async fn get_wrapped(
         })
         .collect();
 
-    let activity_graph = stats
+    let mut activity_graph: Vec<DayActivity> = stats
         .daily_plays
         .into_iter()
         .map(|(date, plays)| DayActivity {
             date: date.to_string(),
             plays,
-            hours: (plays as f64 * 3.5) / 60.0,
+            minutes: plays as f64 * 3.5,
         })
         .collect();
+
+    // Sort by date to ensure chronological order for calendar generation
+    activity_graph.sort_by(|a, b| a.date.cmp(&b.date));
 
     // Find similar users (music buddies)
     let similar_users = match db::find_similar_users(&state.db, did, year, 3).await {
@@ -251,14 +254,14 @@ async fn get_wrapped(
 
     let data = WrappedData {
         year,
-        total_hours: stats.total_hours,
+        total_minutes: stats.total_minutes,
         total_plays: stats.total_plays,
         top_artists,
         top_tracks,
         new_artists_count: stats.new_artists_count,
         activity_graph,
-        weekday_avg_hours: stats.weekday_avg_hours,
-        weekend_avg_hours: stats.weekend_avg_hours,
+        weekday_avg_minutes: stats.weekday_avg_minutes,
+        weekend_avg_minutes: stats.weekend_avg_minutes,
         longest_streak: stats.longest_streak,
         days_active: stats.days_active,
         similar_users,
