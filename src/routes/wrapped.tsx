@@ -580,7 +580,7 @@ function WrappedPage() {
               </FadeUpSection>
               <FadeUpSection delay={0.2}>
                 <StaggeredText
-                  text="Daydreaming"
+                  text={data.top_tracks[0]?.title || "Unknown"}
                   className="text-7xl md:text-8xl lg:text-9xl font-bold text-white leading-none mb-8"
                   offset={40}
                   delay={0.1}
@@ -592,7 +592,10 @@ function WrappedPage() {
               </FadeUpSection>
               <FadeUpSection delay={0.4}>
                 <p className="text-2xl md:text-3xl text-white/60 mb-12">
-                  Radiohead · A Moon Shaped Pool
+                  {data.top_tracks[0]?.artist}{" "}
+                  {data.top_tracks[0]?.release_name
+                    ? `· ${data.top_tracks[0].release_name}`
+                    : ""}
                 </p>
               </FadeUpSection>
             </div>
@@ -600,14 +603,15 @@ function WrappedPage() {
               <FadeUpSection delay={0.6}>
                 <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-8 border border-white/10">
                   <p className="text-[6rem] md:text-[8rem] font-bold leading-none bg-gradient-to-br from-[#ff0099] to-[#ff6b6b] bg-clip-text text-transparent mb-4">
-                    <AnimatedNumber value={47} duration={2} />
+                    <AnimatedNumber
+                      value={data.top_tracks[0]?.plays || 0}
+                      duration={2}
+                    />
                   </p>
-                  <p className="text-xl text-white/70 mb-6">
-                    plays in a single day
-                  </p>
+                  <p className="text-xl text-white/70 mb-6">total plays</p>
                   <p className="text-sm text-white/40 leading-relaxed">
-                    On March 15th, you couldn't get enough. That's once every 30
-                    minutes during waking hours.
+                    You really couldn't get enough of this one. It's your
+                    most-played track of the year.
                   </p>
                 </div>
               </FadeUpSection>
