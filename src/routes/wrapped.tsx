@@ -45,6 +45,36 @@ export const Route = createFileRoute("/wrapped")({
   component: WrappedPage,
 });
 
+function getActivityColor(
+  date: Date,
+  activityData: Array<{ date: string; plays: number; hours: number }>,
+): string {
+  const dateStr = date.toISOString().split("T")[0];
+  const activity = activityData.find((a) => a.date === dateStr);
+
+  if (!activity) return "bg-white/5";
+
+  // Color based on hours listened
+  if (activity.hours >= 8) return "bg-[#00ff66]";
+  if (activity.hours >= 5) return "bg-[#00ff66]/70";
+  if (activity.hours >= 2) return "bg-[#00ff66]/40";
+  if (activity.hours >= 0.5) return "bg-[#00ff66]/20";
+  return "bg-white/5";
+}
+
+function generateCalendarDates(year: number): Date[] {
+  const dates: Date[] = [];
+  const startDate = new Date(`${year}-01-01`);
+  let currentDate = new Date(startDate);
+
+  while (currentDate.getFullYear() === year) {
+    dates.push(new Date(currentDate));
+    currentDate.setDate(currentDate.getDate() + 1);
+  }
+
+  return dates;
+}
+
 function AnimatedNumber({
   value,
   duration = 2,
@@ -318,24 +348,29 @@ function WrappedPage() {
                   />
                   {data.top_artists[0]?.top_track_plays && (
                     <div className="text-sm text-white/40 mt-2 space-y-1">
-                      <p>{data.top_artists[0].top_track_plays} plays</p>
-                      {data.top_artists[0].top_track_duration_ms && (
-                        <p>
-                          {Math.round(
-                            data.top_artists[0].top_track_duration_ms /
-                              1000 /
-                              60,
-                          )}
-                          :
-                          {String(
-                            Math.floor(
-                              (data.top_artists[0].top_track_duration_ms /
-                                1000) %
+                      <p>
+                        {data.top_artists[0].top_track_plays} plays -{" "}
+                        {data.top_artists[0].top_track_duration_ms && (
+                          <span>
+                            {Math.round(
+                              (data.top_artists[0].top_track_duration_ms *
+                                data.top_artists[0].top_track_plays) /
+                                1000 /
                                 60,
-                            ),
-                          ).padStart(2, "0")}
-                        </p>
-                      )}
+                            )}
+                            m{" "}
+                            {String(
+                              Math.floor(
+                                ((data.top_artists[0].top_track_duration_ms *
+                                  data.top_artists[0].top_track_plays) /
+                                  1000) %
+                                  60,
+                              ),
+                            ).padStart(2, "0")}
+                            s in total
+                          </span>
+                        )}
+                      </p>
                     </div>
                   )}
                 </div>
@@ -672,31 +707,37 @@ function WrappedPage() {
                           className="flex gap-1.5 items-center justify-center"
                         >
                           <div className="w-6 text-xs text-white/30">{day}</div>
-                          {Array.from({ length: 53 }, (_, weekIdx) => {
-                            // Simulate activity data - you'd replace this with real data
-                            const activityLevel = Math.random();
-                            let bgColor = "bg-white/5";
-                            if (activityLevel > 0.75) bgColor = "bg-[#00ff66]";
-                            else if (activityLevel > 0.5)
-                              bgColor = "bg-[#00ff66]/70";
-                            else if (activityLevel > 0.25)
-                              bgColor = "bg-[#00ff66]/40";
-                            else if (activityLevel > 0.1)
-                              bgColor = "bg-[#00ff66]/20";
-
-                            return (
-                              <motion.div
-                                key={weekIdx}
-                                className={`w-3.5 h-3.5 rounded-sm ${bgColor}`}
-                                initial={{ opacity: 0, scale: 0 }}
-                                animate={{ opacity: 1, scale: 1 }}
-                                transition={{
-                                  duration: 0.2,
-                                  delay: 0.4 + weekIdx * 0.005 + dayIdx * 0.01,
-                                }}
-                              />
-                            );
-                          })}
+                          {generateCalendarDates(data.year)
+                            .filter((d) => {
+                              const dow = d.getDay();
+                              const adjustedDow = dow === 0 ? 6 : dow - 1;
+                              return adjustedDow === dayIdx;
+                            })
+                            .map((date, idx) => {
+                              const bgColor = getActivityColor(
+                                date,
+                                data.activity_graph,
+                              );
+                              return (
+                                <motion.div
+                                  key={idx}
+                                  className={`w-3.5 h-3.5 rounded-sm ${bgColor}`}
+                                  initial={{ opacity: 0, scale: 0 }}
+                                  animate={{ opacity: 1, scale: 1 }}
+                                  transition={{
+                                    duration: 0.2,
+                                    delay: 0.4 + idx * 0.005 + dayIdx * 0.01,
+                                  }}
+                                  title={`${date.toDateString()}: ${
+                                    data.activity_graph.find(
+                                      (a) =>
+                                        a.date ===
+                                        date.toISOString().split("T")[0],
+                                    )?.hours || 0
+                                  } hours`}
+                                />
+                              );
+                            })}
                         </div>
                       ),
                     )}
@@ -742,31 +783,37 @@ function WrappedPage() {
                           <div className="h-8 text-sm text-white/30 -rotate-55 -mr-4 md:mr-0 flex items-center justify-center">
                             {day}
                           </div>
-                          {Array.from({ length: 53 }, (_, weekIdx) => {
-                            // Simulate activity data - you'd replace this with real data
-                            const activityLevel = Math.random();
-                            let bgColor = "bg-white/5";
-                            if (activityLevel > 0.75) bgColor = "bg-[#00ff66]";
-                            else if (activityLevel > 0.5)
-                              bgColor = "bg-[#00ff66]/70";
-                            else if (activityLevel > 0.25)
-                              bgColor = "bg-[#00ff66]/40";
-                            else if (activityLevel > 0.1)
-                              bgColor = "bg-[#00ff66]/20";
-
-                            return (
-                              <motion.div
-                                key={weekIdx}
-                                className={`w-4 h-4 rounded-sm ${bgColor}`}
-                                initial={{ opacity: 0, scale: 0 }}
-                                animate={{ opacity: 1, scale: 1 }}
-                                transition={{
-                                  duration: 0.2,
-                                  delay: 0.4 + weekIdx * 0.005 + dayIdx * 0.01,
-                                }}
-                              />
-                            );
-                          })}
+                          {generateCalendarDates(data.year)
+                            .filter((d) => {
+                              const dow = d.getDay();
+                              const adjustedDow = dow === 0 ? 6 : dow - 1;
+                              return adjustedDow === dayIdx;
+                            })
+                            .map((date, idx) => {
+                              const bgColor = getActivityColor(
+                                date,
+                                data.activity_graph,
+                              );
+                              return (
+                                <motion.div
+                                  key={idx}
+                                  className={`w-4 h-4 rounded-sm ${bgColor}`}
+                                  initial={{ opacity: 0, scale: 0 }}
+                                  animate={{ opacity: 1, scale: 1 }}
+                                  transition={{
+                                    duration: 0.2,
+                                    delay: 0.4 + idx * 0.005 + dayIdx * 0.01,
+                                  }}
+                                  title={`${date.toDateString()}: ${
+                                    data.activity_graph.find(
+                                      (a) =>
+                                        a.date ===
+                                        date.toISOString().split("T")[0],
+                                    )?.hours || 0
+                                  } hours`}
+                                />
+                              );
+                            })}
                         </div>
                       ),
                     )}
