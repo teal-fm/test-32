@@ -158,6 +158,10 @@ async fn fetch_spotify_image(
     client_id: &str,
     client_secret: &str,
 ) -> Result<Option<String>, anyhow::Error> {
+    // override the 1975
+    if (artist_name == "The 1975") {
+        return Ok(None);
+    }
     // Get access token
     let auth = format!("{}:{}", client_id, client_secret);
     let encoded =
@@ -219,7 +223,8 @@ async fn fetch_fanart_image(
     }
 
     let fanart: FanartResponse = response.json().await?;
-    let image_url = fanart.artistthumb.first().map(|t| t.url.clone());
+    // Get the last (most recent, usually) artist thumb
+    let image_url = fanart.artistthumb.last().map(|t| t.url.clone());
 
     Ok(image_url)
 }

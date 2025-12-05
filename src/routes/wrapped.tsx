@@ -100,6 +100,8 @@ function getActivityColor(
 function generateCalendarWeeks(
   year: number,
   activityData: Array<{ date: string; plays: number; minutes: number }>,
+  startMonth?: number,
+  endMonth?: number,
 ): Date[][] {
   const weeks: Date[][] = [];
   const startDate = new Date(`${year}-01-01`);
@@ -112,16 +114,27 @@ function generateCalendarWeeks(
         )
       : startDate;
 
+  // Use date range if specified, otherwise use full activity range
+  let actualStartDate: Date;
+  let actualEndDate: Date;
+
+  if (startMonth !== undefined && endMonth !== undefined) {
+    actualStartDate = new Date(year, startMonth - 1, 1);
+    actualEndDate = new Date(year, endMonth, 0); // Last day of endMonth
+  } else {
+    actualStartDate = firstActivityDate;
+    actualEndDate = new Date(`${year}-12-31`);
+  }
+
   // Find the first Monday on or before the first activity date
-  const firstDay = new Date(firstActivityDate);
+  const firstDay = new Date(actualStartDate);
   const dayOfWeek = firstDay.getDay();
   const daysToMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
   firstDay.setDate(firstDay.getDate() - daysToMonday);
 
   let currentDate = new Date(firstDay);
-  const endDate = new Date(`${year}-12-31`);
 
-  while (currentDate <= endDate) {
+  while (currentDate <= actualEndDate) {
     const week: Date[] = [];
     for (let i = 0; i < 7; i++) {
       week.push(new Date(currentDate));
@@ -134,6 +147,28 @@ function generateCalendarWeeks(
   }
 
   return weeks;
+}
+
+function shouldSplitActivityGraph(
+  year: number,
+  activityData: Array<{ date: string; plays: number; minutes: number }>,
+): boolean {
+  if (activityData.length === 0) return false;
+
+  const yearStart = new Date(`${year}-01-01`);
+  const yearEnd = new Date(`${year}-12-31`);
+
+  const firstActivityDate = new Date(
+    Math.min(...activityData.map((a) => new Date(a.date).getTime())),
+  );
+
+  // Calculate days from first activity to end of year
+  const totalDays = Math.ceil(
+    (yearEnd.getTime() - firstActivityDate.getTime()) / (1000 * 60 * 60 * 24),
+  );
+
+  // Split if spans more than 275 days (about 3/4 of year) or starts before March
+  return totalDays > 275 || firstActivityDate.getMonth() < 2;
 }
 
 function AnimatedNumber({
@@ -308,7 +343,7 @@ function WrappedPage() {
       try {
         const did =
           localStorage.getItem("user_did") ||
-          "did:plc:rnpkyqnmsw4ipey6eotbdnnf";
+          "did:plc:k644h4rq5bjfzcetgsa6tuby";
         const year = new Date().getFullYear();
         const response = await fetch(
           `http://localhost:3001/api/wrapped/${year}?did=${did}`,
@@ -550,7 +585,7 @@ function WrappedPage() {
                 </div>
                 <div>
                   <p className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl text-white mb-3">
-                    new artists discovered
+                    artists discovered this year
                   </p>
                   <p className="text-lg sm:text-xl text-white/60 leading-relaxed max-w-2xl mx-auto">
                     You're always hunting for something fresh. These are the
@@ -1652,6 +1687,7 @@ function WrappedPage() {
                     )}
                   </div>
                 </div>
+
                 <div className="flex items-center gap-3 mt-8 justify-end">
                   <span className="text-xs text-white/30">Less</span>
                   <div className="flex gap-1.5">
@@ -1859,10 +1895,9 @@ function WrappedPage() {
           </FadeUpSection>
           <FadeUpSection delay={0.8}>
             <p className="text-lg sm:text-xl md:text-2xl text-white/50 leading-relaxed max-w-2xl mx-auto px-4 mb-12">
-              Thanks for making 2025 unforgettable,
-              <br />
-              from <span className="font-hand">Matt</span> and{" "}
-              <span className="font-hand">Natalie</span>.
+              Thanks for making 2025 unforgettable.
+              <br />- <span className="font-hand">Matt</span> and{" "}
+              <span className="font-hand">Natalie</span>
             </p>
           </FadeUpSection>
 
@@ -1938,14 +1973,14 @@ function WrappedPage() {
               <h3 className="text-white text-xl mb-4">Top Stats (1080x1080)</h3>
               <div
                 ref={topStatsCardRef}
-                className="w-[1080px] h-[1080px] bg-[#0a0a0a] p-16 flex flex-col justify-between border border-white/20"
+                className="w-[1080px] h-[1080px] bg-[#0a0a0a] p-16 flex flex-col justify-between border  border-white/20 rounded-4xl"
                 style={{ transform: "scale(0.5)", transformOrigin: "top left" }}
               >
                 <div>
                   <p className="text-3xl uppercase tracking-[0.3em] text-white/40 mb-12">
                     {data.year} Wrapped
                   </p>
-                  <h2 className="text-9xl font-bold text-white mb-16">
+                  <h2 className="text-9xl font-bold text-white mb-4">
                     {Math.round(data.total_minutes).toLocaleString()}
                   </h2>
                   <p className="text-5xl text-white/80 mb-24">
@@ -1999,7 +2034,7 @@ function WrappedPage() {
               </h3>
               <div
                 ref={topArtistCardRef}
-                className="w-[1080px] h-[1080px] bg-[#0a0a0a] p-16 flex flex-col border border-white/20"
+                className="w-[1080px] h-[1080px] bg-[#0a0a0a] p-16 flex flex-col border  border-white/20 rounded-4xl"
                 style={{ transform: "scale(0.5)", transformOrigin: "top left" }}
               >
                 <div>
@@ -2008,15 +2043,15 @@ function WrappedPage() {
                   </p>
                 </div>
 
-                <div className="flex-1 flex flex-col justify-center">
+                <div className="flex-1 flex flex-col justify-center mt-12">
                   {data.top_artists[0]?.image_url && (
                     <img
                       src={data.top_artists[0].image_url}
                       alt={data.top_artists[0].name}
-                      className="w-96 h-96 object-cover rounded-3xl mx-auto mb-12 brightness-90"
+                      className="w-96 h-96 object-cover rounded-3xl mx-auto mb-12 brightness-90 scale-150 -z-20"
                     />
                   )}
-                  <h2 className="text-7xl font-bold text-white text-center mb-16 leading-tight">
+                  <h2 className="text-7xl font-bold text-white text-center mb-16 leading-tight text-shadow-lg">
                     {data.top_artists[0]?.name}
                   </h2>
 
@@ -2026,9 +2061,9 @@ function WrappedPage() {
                         className="text-6xl font-bold mb-3"
                         style={{ color: "#00d9ff" }}
                       >
-                        {Math.round((data.top_artists[0]?.minutes || 0) / 60)}
+                        {Math.round(data.top_artists[0]?.minutes || 0)}
                       </p>
-                      <p className="text-2xl text-white/60">hours</p>
+                      <p className="text-2xl text-white/60">minutes listened</p>
                     </div>
                     <div className="text-center">
                       <p
@@ -2037,7 +2072,7 @@ function WrappedPage() {
                       >
                         {data.top_artists[0]?.plays || 0}
                       </p>
-                      <p className="text-2xl text-white/60">plays</p>
+                      <p className="text-2xl text-white/60">tracks played</p>
                     </div>
                   </div>
                 </div>
@@ -2053,88 +2088,242 @@ function WrappedPage() {
               <h3 className="text-white text-xl mb-4">Activity (1920x1080)</h3>
               <div
                 ref={activityCardRef}
-                className="w-[1920px] h-[1080px] bg-[#0a0a0a] p-16 flex flex-col border border-white/20"
+                className="w-[1920px] h-[1080px] bg-[#0a0a0a] p-16 flex flex-col border border-white/20 rounded-4xl"
                 style={{ transform: "scale(0.4)", transformOrigin: "top left" }}
               >
                 <div>
-                  <p className="text-3xl uppercase tracking-[0.3em] text-white/40 mb-12">
+                  <p className="text-3xl uppercase tracking-[0.3em] text-white/40">
                     {data.year} Activity
                   </p>
                 </div>
 
                 <div className="flex-1 flex flex-col justify-center">
-                  <div className="bg-white/5  rounded-3xl p-12 border border-white/10">
-                    <div className="inline-flex flex-col gap-1.5 min-w-full justify-center items-center">
-                      {/* Month labels */}
-                      <div className="flex gap-1.5">
-                        <div className="w-8" />
-                        {generateCalendarWeeks(
-                          data.year,
-                          data.activity_graph,
-                        ).map((week, weekIdx) => {
-                          const firstDate = week[0];
-                          const isFirstWeekOfMonth = firstDate.getDate() <= 7;
-                          const monthNames = [
-                            "Jan",
-                            "Feb",
-                            "Mar",
-                            "Apr",
-                            "May",
-                            "Jun",
-                            "Jul",
-                            "Aug",
-                            "Sep",
-                            "Oct",
-                            "Nov",
-                            "Dec",
-                          ];
-                          return (
-                            <div
-                              key={weekIdx}
-                              className="w-8 text-2xl -rotate-25 pl-4 text-white/30"
-                            >
-                              {isFirstWeekOfMonth &&
-                                monthNames[firstDate.getMonth()]}
-                            </div>
-                          );
-                        })}
-                      </div>
-                      {/* Day rows */}
-                      {["Mon", "", "Wed", "", "Fri", "", "Sun"].map(
-                        (day, dayIdx) => (
-                          <div
-                            key={dayIdx}
-                            className="flex gap-1.5 items-center"
-                          >
-                            <div className="w-12 text-lg text-white/30">
-                              {day}
-                            </div>
+                  {shouldSplitActivityGraph(data.year, data.activity_graph) ? (
+                    /* Split into two rows for full year */
+                    <div className="flex flex-col items-center">
+                      {/* First half - Jan to Jun */}
+                      <div className="bg-white/5 rounded-3xl p-8 pt-4 border max-w-min border-white/10">
+                        <div className="inline-flex flex-col gap-1.5 min-w-full justify-center items-center">
+                          {/* Month labels */}
+                          <div className="flex gap-1.5">
+                            <div className="w-6" />
                             {generateCalendarWeeks(
                               data.year,
                               data.activity_graph,
+                              1,
+                              6,
                             ).map((week, weekIdx) => {
-                              const date = week[dayIdx];
-                              const bgColor = getActivityColor(
-                                date,
-                                data.activity_graph,
-                              );
-                              const activity = data.activity_graph.find(
-                                (a) =>
-                                  a.date === date.toISOString().split("T")[0],
-                              );
+                              const firstDate = week[0];
+                              const isFirstWeekOfMonth =
+                                firstDate.getDate() <= 7;
+                              const monthNames = [
+                                "Jan",
+                                "Feb",
+                                "Mar",
+                                "Apr",
+                                "May",
+                                "Jun",
+                              ];
                               return (
                                 <div
                                   key={weekIdx}
-                                  className={`w-8 h-8 rounded ${bgColor}`}
-                                  title={`${date.toDateString()}: ${((activity?.minutes || 0) / 60).toFixed(1)} hours`}
-                                />
+                                  className="w-8 text-lg text-white/30"
+                                >
+                                  {isFirstWeekOfMonth &&
+                                    monthNames[firstDate.getMonth()]}
+                                </div>
                               );
                             })}
                           </div>
-                        ),
-                      )}
+                          {/* Day rows */}
+                          {["Mon", "", "Wed", "", "Fri", "", "Sun"].map(
+                            (day, dayIdx) => (
+                              <div
+                                key={dayIdx}
+                                className="flex gap-1.5 items-center"
+                              >
+                                <div className="w-8 text-sm text-white/30">
+                                  {day}
+                                </div>
+                                {generateCalendarWeeks(
+                                  data.year,
+                                  data.activity_graph,
+                                  1,
+                                  6,
+                                ).map((week, weekIdx) => {
+                                  const date = week[dayIdx];
+                                  const bgColor = getActivityColor(
+                                    date,
+                                    data.activity_graph,
+                                  );
+                                  const activity = data.activity_graph.find(
+                                    (a) =>
+                                      a.date ===
+                                      date.toISOString().split("T")[0],
+                                  );
+                                  return (
+                                    <div
+                                      key={weekIdx}
+                                      className={`w-8 h-8 rounded ${bgColor}`}
+                                      title={`${date.toDateString()}: ${((activity?.minutes || 0) / 60).toFixed(1)} hours`}
+                                    />
+                                  );
+                                })}
+                              </div>
+                            ),
+                          )}
+                          <div className="h-2" />
+                          <div className="flex gap-1.5">
+                            <div className="w-6" />
+                            {generateCalendarWeeks(
+                              data.year,
+                              data.activity_graph,
+                              7,
+                              12,
+                            ).map((week, weekIdx) => {
+                              const firstDate = week[0];
+                              const isFirstWeekOfMonth =
+                                firstDate.getDate() <= 7;
+                              const monthNames = [
+                                "",
+                                "",
+                                "",
+                                "",
+                                "",
+                                "",
+                                "Jul",
+                                "Aug",
+                                "Sep",
+                                "Oct",
+                                "Nov",
+                                "Dec",
+                              ];
+                              return (
+                                <div
+                                  key={weekIdx}
+                                  className="w-8 text-lg text-white/30"
+                                >
+                                  {isFirstWeekOfMonth &&
+                                    monthNames[firstDate.getMonth()]}
+                                </div>
+                              );
+                            })}
+                          </div>
+                          {/* Day rows */}
+                          {["Mon", "", "Wed", "", "Fri", "", "Sun"].map(
+                            (day, dayIdx) => (
+                              <div
+                                key={dayIdx}
+                                className="flex gap-1.5 items-center"
+                              >
+                                <div className="w-8 text-sm text-white/30">
+                                  {day}
+                                </div>
+                                {generateCalendarWeeks(
+                                  data.year,
+                                  data.activity_graph,
+                                  7,
+                                  12,
+                                ).map((week, weekIdx) => {
+                                  const date = week[dayIdx];
+                                  const bgColor = getActivityColor(
+                                    date,
+                                    data.activity_graph,
+                                  );
+                                  const activity = data.activity_graph.find(
+                                    (a) =>
+                                      a.date ===
+                                      date.toISOString().split("T")[0],
+                                  );
+                                  return (
+                                    <div
+                                      key={weekIdx}
+                                      className={`w-8 h-8 rounded ${bgColor}`}
+                                      title={`${date.toDateString()}: ${((activity?.minutes || 0) / 60).toFixed(1)} hours`}
+                                    />
+                                  );
+                                })}
+                              </div>
+                            ),
+                          )}
+                        </div>
+                      </div>
                     </div>
-                  </div>
+                  ) : (
+                    /* Single row for shorter activity periods */
+                    <div className="bg-white/5 rounded-3xl p-12 border border-white/10">
+                      <div className="inline-flex flex-col gap-1.5 min-w-full justify-center items-center">
+                        {/* Month labels */}
+                        <div className="flex gap-1.5">
+                          <div className="w-8" />
+                          {generateCalendarWeeks(
+                            data.year,
+                            data.activity_graph,
+                          ).map((week, weekIdx) => {
+                            const firstDate = week[0];
+                            const isFirstWeekOfMonth = firstDate.getDate() <= 7;
+                            const monthNames = [
+                              "Jan",
+                              "Feb",
+                              "Mar",
+                              "Apr",
+                              "May",
+                              "Jun",
+                              "Jul",
+                              "Aug",
+                              "Sep",
+                              "Oct",
+                              "Nov",
+                              "Dec",
+                            ];
+                            return (
+                              <div
+                                key={weekIdx}
+                                className="w-8 text-2xl -rotate-25 pl-4 text-white/30"
+                              >
+                                {isFirstWeekOfMonth &&
+                                  monthNames[firstDate.getMonth()]}
+                              </div>
+                            );
+                          })}
+                        </div>
+                        {/* Day rows */}
+                        {["Mon", "", "Wed", "", "Fri", "", "Sun"].map(
+                          (day, dayIdx) => (
+                            <div
+                              key={dayIdx}
+                              className="flex gap-1.5 items-center"
+                            >
+                              <div className="w-12 text-lg text-white/30">
+                                {day}
+                              </div>
+                              {generateCalendarWeeks(
+                                data.year,
+                                data.activity_graph,
+                              ).map((week, weekIdx) => {
+                                const date = week[dayIdx];
+                                const bgColor = getActivityColor(
+                                  date,
+                                  data.activity_graph,
+                                );
+                                const activity = data.activity_graph.find(
+                                  (a) =>
+                                    a.date === date.toISOString().split("T")[0],
+                                );
+                                return (
+                                  <div
+                                    key={weekIdx}
+                                    className={`w-8 h-8 rounded ${bgColor}`}
+                                    title={`${date.toDateString()}: ${((activity?.minutes || 0) / 60).toFixed(1)} hours`}
+                                  />
+                                );
+                              })}
+                            </div>
+                          ),
+                        )}
+                      </div>
+                    </div>
+                  )}
 
                   <div className="mt-16 text-center">
                     <p className="text-5xl font-bold text-white mb-6">
@@ -2159,73 +2348,68 @@ function WrappedPage() {
               </h3>
               <div
                 ref={overallCardRef}
-                className="w-[1080px] h-[1080px] bg-[#0a0a0a] p-16 flex flex-col border border-white/20"
+                className="w-[1080px] h-[1440px] bg-[#0a0a0a] p-16 flex flex-col border  border-white/20 rounded-4xl relative"
                 style={{ transform: "scale(0.5)", transformOrigin: "top left" }}
               >
+                {data.top_artists[0]?.image_url && (
+                  <div className="absolute w-full -m-16 -z-10">
+                    <img
+                      src={data.top_artists[0].image_url}
+                      alt={data.top_artists[0].name}
+                      className="aspect-square w-full object-cover rounded-2xl absolute top-0 left-0 -z-20"
+                    />
+                    <div
+                      className="aspect-square w-full rounded-2xl absolute top-0 left-0 pointer-events-none z-20"
+                      style={{
+                        background:
+                          "linear-gradient(#0a0a0a, #0a0a0a70, transparent, #0a0a0a70, #0a0a0ac0, #0a0a0a)",
+                      }}
+                    />
+                  </div>
+                )}
                 <div>
                   <p className="text-3xl uppercase tracking-[0.3em] text-white/40 mb-12">
                     {data.year} year in music
                   </p>
-                  <h2 className="text-6xl font-bold text-white mb-16">
-                    Your Top 3
-                  </h2>
                 </div>
-
-                <div className="flex-1 space-y-12">
-                  {/* Top Artist */}
-                  <div className="bg-white/5  rounded-3xl p-10 border border-white/10">
-                    <div className="flex items-center gap-8">
-                      {data.top_artists[0]?.image_url && (
-                        <img
-                          src={data.top_artists[0].image_url}
-                          alt={data.top_artists[0].name}
-                          className="w-32 h-32 object-cover rounded-2xl brightness-90"
-                        />
-                      )}
-                      <div className="flex-1">
-                        <p className="text-xl text-white/40 uppercase tracking-wider mb-3">
-                          Top Artist
-                        </p>
-                        <h3 className="text-5xl font-bold text-white mb-4">
-                          {data.top_artists[0]?.name}
-                        </h3>
-                        <p className="text-3xl text-white/60">
-                          {Math.round((data.top_artists[0]?.minutes || 0) / 60)}{" "}
-                          hours
-                        </p>
-                      </div>
+                <div className="flex-1 flex flex-col justify-end z-10">
+                  <div className="grid grid-cols-2">
+                    <div>
+                      <h2 className="text-9xl font-semibold text-white/75 text-shadow-lg ml-4">
+                        {Math.round(data.total_minutes).toLocaleString()}
+                      </h2>
+                      <p className="text-5xl text-white/80 mb-8 ml-4">
+                        minutes listened
+                      </p>
                     </div>
                   </div>
-
-                  {/* Top Track */}
-                  <div className="bg-white/5  rounded-3xl p-10 border border-white/10">
-                    <div className="flex items-center gap-8">
-                      <img
-                        src={`https://coverartarchive.org/release/${data.top_tracks[0]?.release_mb_id}/front-500.jpg`}
-                        alt={data.top_tracks[0]?.title}
-                        className="w-32 h-32 object-cover rounded-2xl brightness-85"
-                      />
-                      <div className="flex-1">
-                        <p className="text-xl text-white/40 uppercase tracking-wider mb-3">
-                          Top Track
-                        </p>
-                        <h3 className="text-4xl font-bold text-white mb-2 leading-tight">
-                          {data.top_tracks[0]?.title}
-                        </h3>
-                        <p className="text-2xl text-white/60">
-                          {data.top_tracks[0]?.artist}
-                        </p>
-                        <p
-                          className="text-3xl font-bold mt-4"
-                          style={{ color: "#ff0099" }}
-                        >
-                          {data.top_tracks[0]?.plays} plays
-                        </p>
-                      </div>
+                  <div className="grid grid-cols-2">
+                    <div className="ml-4">
+                      <h3 className="text-4xl text-white/70 mb-8">Artists</h3>
+                      <ol className="list-decimal list-outside ml-6 space-y-4 text-white text-xl">
+                        {data.top_artists.slice(0, 5).map((artist, idx) => (
+                          <li key={idx} className="font-medium text-4xl">
+                            {artist.name}
+                            <p className="text-xl text-white/50">
+                              {artist.plays} plays
+                            </p>
+                          </li>
+                        ))}
+                      </ol>
+                    </div>
+                    <div>
+                      <h3 className="text-4xl text-white/70 mb-8">Tracks</h3>
+                      <ol className="list-decimal list-outside ml-6 space-y-4 text-white text-xl">
+                        {data.top_tracks.slice(0, 5).map((t, idx) => (
+                          <li key={idx} className="font-medium text-4xl">
+                            {t.title}
+                            <p className="text-xl text-white/50">{t.artist}</p>
+                          </li>
+                        ))}
+                      </ol>
                     </div>
                   </div>
                 </div>
-
                 <div className="text-center mt-8">
                   <p className="text-2xl text-white/40">yearinmusic.teal.fm</p>
                 </div>
