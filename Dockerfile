@@ -12,9 +12,11 @@ COPY api/src ./api/src
 COPY lexicon/src ./lexicon/src
 
 # build release binary
-RUN cargo build --release --packageub teal-wrapped-api
+RUN cargo build --release --package teal-wrapped-api
 
 FROM debian:bookworm-slim
+
+ENV DEBIAN_FRONTEND=noninteractive
 
 RUN apt-get update && apt-get install -y \
     ca-certificates \
