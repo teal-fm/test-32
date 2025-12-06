@@ -10,6 +10,8 @@ COPY lexicon/Cargo.toml ./lexicon/
 # copy source
 COPY api/src ./api/src
 COPY lexicon/src ./lexicon/src
+# and /.sqlx
+COPY .sqlx .sqlx
 
 # build release binary
 RUN cargo build --release --package teal-wrapped-api
