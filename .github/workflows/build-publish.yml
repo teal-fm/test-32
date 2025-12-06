@@ -1,0 +1,140 @@
+name: build and publish
+
+on:
+  push:
+    branches:
+      - main
+  release:
+    types: [published]
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  build-native:
+    strategy:
+      matrix:
+        include:
+          - runner: ubuntu-latest
+            arch: x86_64
+            target: x86_64-unknown-linux-gnu
+          - runner: ubuntu-24.04-arm
+            arch: arm64
+            target: aarch64-unknown-linux-gnu
+
+    runs-on: ${{ matrix.runner }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: set up docker buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: log in to container registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: determine tag
+        id: meta
+        run: |
+          if [ "${{ github.event_name }}" = "release" ]; then
+            TAG="${{ github.event.release.tag_name }}"
+          else
+            TAG="main-$(git rev-parse --short HEAD)"
+          fi
+          echo "tag=${TAG}" >> $GITHUB_OUTPUT
+
+      - name: build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.meta.outputs.tag }}-${{ matrix.arch }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          provenance: false
+          outputs: type=image,push=true
+
+  publish-binaries:
+    if: github.event_name == 'release'
+    needs: build-native
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: download x86_64 binary
+        uses: actions/download-artifact@v4
+        with:
+          name: server-x86_64
+          path: artifacts
+
+      - name: download arm64 binary
+        uses: actions/download-artifact@v4
+        with:
+          name: server-arm64
+          path: artifacts
+
+      - name: upload binaries to release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            artifacts/server-x86_64
+            artifacts/server-arm64
+
+  create-multiarch-image:
+    needs: build-native
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: log in to container registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: create and push multiarch manifest
+        run: |
+          # determine tag based on event type
+          if [ "${{ github.event_name }}" = "release" ]; then
+            TAG="${{ github.event.release.tag_name }}"
+          else
+            TAG="main-$(git rev-parse --short HEAD)"
+          fi
+
+          docker manifest create ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${TAG} \
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${TAG}-x86_64 \
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${TAG}-arm64
+
+          docker manifest annotate ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${TAG} \
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${TAG}-x86_64 \
+            --os linux --arch amd64
+
+          docker manifest annotate ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${TAG} \
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${TAG}-arm64 \
+            --os linux --arch arm64
+
+          docker manifest push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${TAG}
+
+          # also tag as latest for releases or main branch commits
+          if [ "${{ github.event_name }}" = "release" ] || [ "${{ github.ref }}" = "refs/heads/main" ]; then
+            docker manifest create ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest \
+              ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${TAG}-x86_64 \
+              ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${TAG}-arm64
+
+            docker manifest annotate ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest \
+              ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${TAG}-x86_64 \
+              --os linux --arch amd64
+
+            docker manifest annotate ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest \
+              ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${TAG}-arm64 \
+              --os linux --arch arm64
+
+            docker manifest push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+          fi
