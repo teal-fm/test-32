@@ -60,31 +60,6 @@ jobs:
           provenance: false
           outputs: type=image,push=true
 
-  publish-binaries:
-    if: github.event_name == 'release'
-    needs: build-native
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: download x86_64 binary
-        uses: actions/download-artifact@v4
-        with:
-          name: server-x86_64
-          path: artifacts
-
-      - name: download arm64 binary
-        uses: actions/download-artifact@v4
-        with:
-          name: server-arm64
-          path: artifacts
-
-      - name: upload binaries to release
-        uses: softprops/action-gh-release@v2
-        with:
-          files: |
-            artifacts/server-x86_64
-            artifacts/server-arm64
-
   create-multiarch-image:
     needs: build-native
     runs-on: ubuntu-latest
