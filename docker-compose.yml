@@ -1,17 +1,35 @@
-version: "3.8"
-
 services:
   postgres:
     image: postgres:16-alpine
-    container_name: teal-wrapped-postgres
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      POSTGRES_USER: teal
+      POSTGRES_PASSWORD: teal
       POSTGRES_DB: teal_wrapped
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
     ports:
       - "5432:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: ["CMD-SHELL", "pg_isready -U teal"]
       interval: 10s
       timeout: 5s
       retries: 5
+
+  api:
+    image: ghcr.io/yourusername/teal-wrapped:latest
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://teal:teal@postgres:5432/teal_wrapped
+      SPOTIFY_CLIENT_ID: ${SPOTIFY_CLIENT_ID}
+      SPOTIFY_CLIENT_SECRET: ${SPOTIFY_CLIENT_SECRET}
+      FANART_API_KEY: ${FANART_API_KEY}
+    ports:
+      - "3001:3001"
+    volumes:
+      - ./images:/app/images
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
