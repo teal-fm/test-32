@@ -1,0 +1,40 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n        SELECT image_url, cached_at\n        FROM artist_images\n        WHERE mb_id = $1\n        ",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "image_url",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "artist_images",
+            "name": "image_url"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "cached_at",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "artist_images",
+            "name": "cached_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": [
+      true,
+      false
+    ]
+  },
+  "hash": "d9ed3a222b3b2af3d1535688204a3154d0d54391e87ffe117c28d05e372d6f43"
+}
