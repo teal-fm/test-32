@@ -9,6 +9,15 @@ export const Route = createFileRoute("/")({
 function Home() {
   const [handle, setHandle] = useState("");
   const [isFocused, setIsFocused] = useState(false);
+  const [error, setError] = useState("");
+
+  const handleSubmit = (e: React.MouseEvent) => {
+    if (!handle.trim()) {
+      e.preventDefault();
+      setError("please enter a handle");
+      setTimeout(() => setError(""), 3000);
+    }
+  };
 
   return (
     <div className="min-h-screen relative overflow-hidden">
@@ -98,13 +107,27 @@ function Home() {
               className="flex-1 bg-transparent border-none outline-none text-white text-lg placeholder:text-white/30"
             />
             <Link
-              to="/wrapped"
+              to="/wrapped/$handle"
+              params={{ handle: handle || "futur.blue" }}
+              onClick={handleSubmit}
               className="group relative px-8 py-3 bg-neutral-700/80 rounded-full font-medium text-base text-white/60 overflow-hidden transition-transform duration-200 hover:scale-102"
             >
               <span className="relative z-10">view your year</span>
               <div className="absolute inset-0 bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
             </Link>
           </motion.div>
+
+          {/* Error message */}
+          {error && (
+            <motion.p
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0 }}
+              className="text-center text-red-400 text-sm"
+            >
+              {error}
+            </motion.p>
+          )}
         </div>
       </div>
     </div>

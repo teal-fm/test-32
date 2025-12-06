@@ -75,7 +75,7 @@ interface WrappedData {
   similar_users?: Array<string>;
 }
 
-export const Route = createFileRoute("/wrapped")({
+export const Route = createFileRoute("/wrapped/$handle")({
   component: WrappedPage,
 });
 
@@ -328,6 +328,7 @@ function FloatingArtistBubble({
 }
 
 function WrappedPage() {
+  const { handle } = Route.useParams();
   const [data, setData] = useState<WrappedData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -341,9 +342,16 @@ function WrappedPage() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const did =
-          localStorage.getItem("user_did") ||
-          "did:plc:k644h4rq5bjfzcetgsa6tuby";
+        // Resolve handle to DID via minidoc
+        const miniDocResponse = await fetch(
+          `https://slingshot.microcosm.blue/xrpc/com.bad-example.identity.resolveMiniDoc?identifier=${handle}`,
+        );
+        if (!miniDocResponse.ok) {
+          throw new Error("Failed to resolve handle");
+        }
+        const miniDoc = await miniDocResponse.json();
+        const did = miniDoc.did;
+
         const year = new Date().getFullYear();
         const response = await fetch(
           `http://localhost:3001/api/wrapped/${year}?did=${did}`,
@@ -361,7 +369,7 @@ function WrappedPage() {
     };
 
     fetchData();
-  }, []);
+  }, [handle]);
 
   const generateShareImage = async (
     ref: React.RefObject<HTMLDivElement>,
