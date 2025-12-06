@@ -1,4 +1,4 @@
-FROM rust:1.83-bookworm AS builder
+FROM rust:1.91-bookworm AS builder
 
 WORKDIR /build
 
@@ -12,7 +12,7 @@ COPY api/src ./api/src
 COPY lexicon/src ./lexicon/src
 
 # build release binary
-RUN cargo build --release --package teal-wrapped-api
+RUN cargo build --release --packageub teal-wrapped-api
 
 FROM debian:bookworm-slim
 
