@@ -1,7 +1,13 @@
+import StaggeredText from "@/components/StaggeredText";
+import {
+  MeshGradient,
+  Metaballs,
+  SimplexNoise,
+} from "@paper-design/shaders-react";
 import { createFileRoute } from "@tanstack/react-router";
 import { motion, useInView, useScroll, useTransform } from "framer-motion";
-import { useRef, useEffect, useState } from "react";
 import html2canvas from "html2canvas-pro";
+import { useEffect, useRef, useState } from "react";
 
 // Hook to get responsive margin for intersection observer
 function useResponsiveMargin() {
@@ -28,12 +34,111 @@ function useResponsiveMargin() {
 
   return margin;
 }
-import {
-  MeshGradient,
-  Metaballs,
-  SimplexNoise,
-} from "@paper-design/shaders-react";
-import StaggeredText from "@/components/StaggeredText";
+
+// Placeholder for missing album art
+const ALBUM_PLACEHOLDER =
+  "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='500' height='500' viewBox='0 0 500 500'%3E%3Crect fill='%231a1a2e' width='500' height='500'/%3E%3Ccircle cx='250' cy='250' r='150' fill='none' stroke='%23333' stroke-width='2'/%3E%3Ccircle cx='250' cy='250' r='50' fill='%23333'/%3E%3C/svg%3E";
+
+// Cache for MusicBrainz lookups to avoid repeated API calls
+const mbidCache = new Map<string, string | null>();
+
+async function lookupReleaseMbId(
+  title: string,
+  artist: string
+): Promise<string | null> {
+  const cacheKey = `${artist}::${title}`;
+  if (mbidCache.has(cacheKey)) {
+    return mbidCache.get(cacheKey) || null;
+  }
+
+  try {
+    // Search for recording to find release
+    const query = encodeURIComponent(
+      `recording:"${title}" AND artist:"${artist}"`
+    );
+    const response = await fetch(
+      `https://musicbrainz.org/ws/2/recording?query=${query}&fmt=json&limit=1`,
+      {
+        headers: {
+          "User-Agent": "TealWrapped/1.0 (https://teal.fm)",
+        },
+      }
+    );
+
+    if (!response.ok) {
+      mbidCache.set(cacheKey, null);
+      return null;
+    }
+
+    const data = await response.json();
+    const recording = data.recordings?.[0];
+    const releaseMbId = recording?.releases?.[0]?.id;
+
+    mbidCache.set(cacheKey, releaseMbId || null);
+    return releaseMbId || null;
+  } catch (error) {
+    console.error("MusicBrainz lookup failed:", error);
+    mbidCache.set(cacheKey, null);
+    return null;
+  }
+}
+
+function AlbumArt({
+  releaseMbId,
+  title,
+  artist,
+  alt,
+  className,
+}: {
+  releaseMbId?: string;
+  title: string;
+  artist: string;
+  alt?: string;
+  className?: string;
+}) {
+  const [src, setSrc] = useState<string>(ALBUM_PLACEHOLDER);
+  const [hasError, setHasError] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function resolveAlbumArt() {
+      // If we have a valid MBID, use it directly
+      if (releaseMbId && releaseMbId !== "undefined") {
+        setSrc(
+          `https://coverartarchive.org/release/${releaseMbId}/front-500.jpg`
+        );
+        return;
+      }
+
+      // Try to look up the MBID from MusicBrainz
+      const foundMbId = await lookupReleaseMbId(title, artist);
+      if (cancelled) return;
+
+      if (foundMbId) {
+        setSrc(
+          `https://coverartarchive.org/release/${foundMbId}/front-500.jpg`
+        );
+      } else {
+        setSrc(ALBUM_PLACEHOLDER);
+      }
+    }
+
+    resolveAlbumArt();
+    return () => {
+      cancelled = true;
+    };
+  }, [releaseMbId, title, artist]);
+
+  return (
+    <img
+      src={hasError ? ALBUM_PLACEHOLDER : src}
+      alt={alt || title}
+      className={className}
+      onError={() => setHasError(true)}
+    />
+  );
+}
 
 interface WrappedData {
   year: number;
@@ -73,6 +178,7 @@ interface WrappedData {
   top_hour: number;
   longest_session_minutes: number;
   similar_users?: Array<string>;
+  profile_picture?: string;
 }
 
 export const Route = createFileRoute("/wrapped/$handle")({
@@ -81,7 +187,7 @@ export const Route = createFileRoute("/wrapped/$handle")({
 
 function getActivityColor(
   date: Date,
-  activityData: Array<{ date: string; plays: number; minutes: number }>,
+  activityData: Array<{ date: string; plays: number; minutes: number }>
 ): string {
   const dateStr = date.toISOString().split("T")[0];
   const activity = activityData.find((a) => a.date === dateStr);
@@ -101,7 +207,7 @@ function generateCalendarWeeks(
   year: number,
   activityData: Array<{ date: string; plays: number; minutes: number }>,
   startMonth?: number,
-  endMonth?: number,
+  endMonth?: number
 ): Date[][] {
   const weeks: Date[][] = [];
   const startDate = new Date(`${year}-01-01`);
@@ -110,7 +216,7 @@ function generateCalendarWeeks(
   const firstActivityDate =
     activityData.length > 0
       ? new Date(
-          Math.min(...activityData.map((a) => new Date(a.date).getTime())),
+          Math.min(...activityData.map((a) => new Date(a.date).getTime()))
         )
       : startDate;
 
@@ -151,7 +257,7 @@ function generateCalendarWeeks(
 
 function shouldSplitActivityGraph(
   year: number,
-  activityData: Array<{ date: string; plays: number; minutes: number }>,
+  activityData: Array<{ date: string; plays: number; minutes: number }>
 ): boolean {
   if (activityData.length === 0) return false;
 
@@ -159,12 +265,12 @@ function shouldSplitActivityGraph(
   const yearEnd = new Date(`${year}-12-31`);
 
   const firstActivityDate = new Date(
-    Math.min(...activityData.map((a) => new Date(a.date).getTime())),
+    Math.min(...activityData.map((a) => new Date(a.date).getTime()))
   );
 
   // Calculate days from first activity to end of year
   const totalDays = Math.ceil(
-    (yearEnd.getTime() - firstActivityDate.getTime()) / (1000 * 60 * 60 * 24),
+    (yearEnd.getTime() - firstActivityDate.getTime()) / (1000 * 60 * 60 * 24)
   );
 
   // Split if spans more than 275 days (about 3/4 of year) or starts before March
@@ -280,7 +386,7 @@ function FloatingArtistBubble({
 
   return (
     <motion.div
-      className={`absolute ${sizeClass}`}
+      className={`absolute ${sizeClass} group`}
       style={{
         left: `${xPercent}%`,
         top: `${yPercent}%`,
@@ -303,14 +409,14 @@ function FloatingArtistBubble({
       }}
     >
       {artist.image_url ? (
-        <div className="relative w-full h-full overflow-clip rounded-full border-2 border-white/30 shadow-xl hover:shadow-2xl transition-shadow">
+        <div className="relative w-full h-full overflow-clip rounded-full border-2 border-white/30 shadow-xl group-hover:shadow-2xl transition-shadow">
           <img
             src={artist.image_url}
             alt={artist.name}
             className="w-full h-full object-cover"
           />
-          <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 hover:opacity-100 transition-opacity duration-300" />
-          <div className="absolute inset-0 flex items-end justify-center pb-1 sm:pb-2 opacity-0 hover:opacity-100 transition-opacity duration-300">
+          <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+          <div className="absolute inset-0 flex items-end justify-center pb-1 sm:pb-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
             <span className="text-white text-[0.6rem] sm:text-xs font-medium drop-shadow-lg px-1 text-center leading-tight">
               {artist.name}
             </span>
@@ -344,7 +450,7 @@ function WrappedPage() {
       try {
         // Resolve handle to DID via minidoc
         const miniDocResponse = await fetch(
-          `https://slingshot.microcosm.blue/xrpc/com.bad-example.identity.resolveMiniDoc?identifier=${handle}`,
+          `https://slingshot.microcosm.blue/xrpc/com.bad-example.identity.resolveMiniDoc?identifier=${handle}`
         );
         if (!miniDocResponse.ok) {
           throw new Error("Failed to resolve handle");
@@ -354,7 +460,7 @@ function WrappedPage() {
 
         const year = new Date().getFullYear();
         const response = await fetch(
-          `http://localhost:3001/api/wrapped/${year}?did=${did}`,
+          `http://localhost:3001/api/wrapped/${year}?did=${did}`
         );
         if (!response.ok) {
           throw new Error("Failed to fetch wrapped data");
@@ -373,7 +479,7 @@ function WrappedPage() {
 
   const generateShareImage = async (
     ref: React.RefObject<HTMLDivElement>,
-    filename: string,
+    filename: string
   ) => {
     if (!ref.current) return;
 
@@ -438,14 +544,26 @@ function WrappedPage() {
             </div>
             <div className="hidden md:block">{data.year}</div>
           </motion.h1>
-          <motion.p
-            className="md:absolute relative text-3xl md:text-3xl lg:text-4xl left-0 right-0 md:left-auto uppercase tracking-[0.3em] text-white -mt-40 text-center z-30"
+          <motion.div
+            className="md:absolute relative left-0 right-0 md:left-auto -mt-40 z-30 flex flex-col items-center gap-4"
             initial={{ opacity: 0, scale: 1 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ duration: 0.8, delay: 0.6 }}
           >
-            Your Year in Music
-          </motion.p>
+            <p className="text-3xl md:text-3xl lg:text-4xl uppercase tracking-[0.3em] text-white text-center">
+              Your Year in Music
+            </p>
+            <div className="-mt-3 flex flex-row items-center gap-4">
+              {data.profile_picture && (
+                <img
+                  src={data.profile_picture}
+                  alt={handle}
+                  className="w-12 h-12 rounded-full border-2 border-white/20"
+                />
+              )}
+              <p className="text-lg text-white/50">@{handle}</p>
+            </div>
+          </motion.div>
         </div>
       </section>
 
@@ -562,7 +680,9 @@ function WrappedPage() {
                     "lg:w-30 lg:h-30",
                   ];
 
-                  const sizeClass = `${sizeVariants[idx % 4]} ${smSizeVariants[idx % 4]} ${lgSizeVariants[idx % 4]}`;
+                  const sizeClass = `${sizeVariants[idx % 4]} ${
+                    smSizeVariants[idx % 4]
+                  } ${lgSizeVariants[idx % 4]}`;
 
                   return (
                     <FloatingArtistBubble
@@ -651,7 +771,7 @@ function WrappedPage() {
                   <p className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold bg-gradient-to-r from-[#00d9ff] to-[#0066ff] bg-clip-text text-transparent">
                     <AnimatedNumber
                       value={Math.round(
-                        (data.top_artists[0]?.minutes || 0) / 60,
+                        (data.top_artists[0]?.minutes || 0) / 60
                       )}
                     />
                   </p>
@@ -693,7 +813,7 @@ function WrappedPage() {
                               (data.top_artists[0].top_track_duration_ms *
                                 data.top_artists[0].top_track_plays) /
                                 1000 /
-                                60,
+                                60
                             )}
                             m{" "}
                             {String(
@@ -701,8 +821,8 @@ function WrappedPage() {
                                 ((data.top_artists[0].top_track_duration_ms *
                                   data.top_artists[0].top_track_plays) /
                                   1000) %
-                                  60,
-                              ),
+                                  60
+                              )
                             ).padStart(2, "0")}
                             s in total
                           </span>
@@ -858,8 +978,10 @@ function WrappedPage() {
                 track of your year
               </p>
               <FadeUpSection>
-                <img
-                  src={`https://coverartarchive.org/release/${data.top_tracks[0]?.release_mb_id}/front-500.jpg`}
+                <AlbumArt
+                  releaseMbId={data.top_tracks[0]?.release_mb_id}
+                  title={data.top_tracks[0]?.title || "Unknown"}
+                  artist={data.top_tracks[0]?.artist || "Unknown"}
                   className="-mb-12 sm:-mb-16 lg:-mb-18 rounded-2xl border border-white/10 shadow-lg w-full max-w-sm lg:max-w-md brightness-85 relative z-0"
                 />
               </FadeUpSection>
@@ -935,9 +1057,10 @@ function WrappedPage() {
               {data.top_tracks[1] && (
                 <FadeUpSection delay={0.2}>
                   <div className="bg-white/5 backdrop-blur-sm rounded-3xl p-6 lg:p-8 border border-white/10">
-                    <img
-                      src={`https://coverartarchive.org/release/${data.top_tracks[1].release_mb_id}/front-500.jpg`}
-                      alt={data.top_tracks[1].title}
+                    <AlbumArt
+                      releaseMbId={data.top_tracks[1].release_mb_id}
+                      title={data.top_tracks[1].title}
+                      artist={data.top_tracks[1].artist}
                       className="w-full aspect-square object-cover rounded-2xl mb-6 brightness-85"
                     />
                     <div className="flex items-baseline gap-3 mb-2">
@@ -967,9 +1090,10 @@ function WrappedPage() {
               {data.top_tracks[2] && (
                 <FadeUpSection delay={0.3}>
                   <div className="bg-white/5 backdrop-blur-sm rounded-3xl p-6 lg:p-8 border border-white/10">
-                    <img
-                      src={`https://coverartarchive.org/release/${data.top_tracks[2].release_mb_id}/front-500.jpg`}
-                      alt={data.top_tracks[2].title}
+                    <AlbumArt
+                      releaseMbId={data.top_tracks[2].release_mb_id}
+                      title={data.top_tracks[2].title}
+                      artist={data.top_tracks[2].artist}
                       className="w-full aspect-square object-cover rounded-2xl mb-6 brightness-85"
                     />
                     <div className="flex items-baseline gap-3 mb-2">
@@ -1025,9 +1149,10 @@ function WrappedPage() {
                   <p className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white z-20 pl-1 text-shadow-md min-w-[3rem] sm:min-w-[4rem]">
                     {idx + 1}
                   </p>
-                  <img
-                    src={`https://coverartarchive.org/release/${item.release_mb_id}/front-500.jpg`}
-                    alt={item.title}
+                  <AlbumArt
+                    releaseMbId={item.release_mb_id}
+                    title={item.title}
+                    artist={item.artist}
                     className="w-13 h-13 sm:w-20 sm:h-20 rounded-lg object-cover shadow-md absolute brightness-80"
                   />
                   <div className="flex-1 min-w-0">
@@ -1130,7 +1255,7 @@ function WrappedPage() {
                     {Math.round(
                       ((data.weekend_avg_minutes - data.weekday_avg_minutes) /
                         data.weekday_avg_minutes) *
-                        100,
+                        100
                     )}
                     % more listening time on average.
                   </>
@@ -1140,8 +1265,8 @@ function WrappedPage() {
                     {Math.round(
                       Math.abs(
                         (data.weekend_avg_minutes - data.weekday_avg_minutes) /
-                          data.weekday_avg_minutes,
-                      ) * 100,
+                          data.weekday_avg_minutes
+                      ) * 100
                     )}
                     % more listening time on average.
                   </>
@@ -1250,7 +1375,9 @@ function WrappedPage() {
                         const pathData = `
                           M ${x1} ${y1}
                           L ${x2} ${y2}
-                          Q ${ctrlX} ${ctrlY} ${centerX + radius * Math.cos(nextAngle)} ${centerY + radius * Math.sin(nextAngle)}
+                          Q ${ctrlX} ${ctrlY} ${
+                          centerX + radius * Math.cos(nextAngle)
+                        } ${centerY + radius * Math.sin(nextAngle)}
                           L ${x3} ${y3}
                           A ${minRadius} ${minRadius} 0 0 0 ${x1} ${y1}
                         `;
@@ -1355,14 +1482,14 @@ function WrappedPage() {
                               24) %
                             24;
                           return { hour: localHour, plays };
-                        },
+                        }
                       );
 
                       // Sort by local hour
                       localHourlyPlays.sort((a, b) => a.hour - b.hour);
 
                       const maxPlays = Math.max(
-                        ...localHourlyPlays.map((h) => h.plays),
+                        ...localHourlyPlays.map((h) => h.plays)
                       );
 
                       return localHourlyPlays.map((hourData, idx) => {
@@ -1393,7 +1520,9 @@ function WrappedPage() {
                         const pathData = `
                           M ${x1} ${y1}
                           L ${x2} ${y2}
-                          Q ${ctrlX} ${ctrlY} ${centerX + radius * Math.cos(nextAngle)} ${centerY + radius * Math.sin(nextAngle)}
+                          Q ${ctrlX} ${ctrlY} ${
+                          centerX + radius * Math.cos(nextAngle)
+                        } ${centerY + radius * Math.sin(nextAngle)}
                           L ${x3} ${y3}
                           A ${minRadius} ${minRadius} 0 0 0 ${x1} ${y1}
                         `;
@@ -1407,10 +1536,10 @@ function WrappedPage() {
                           hourData.hour === 0
                             ? "12am"
                             : hourData.hour < 12
-                              ? `${hourData.hour}`
-                              : hourData.hour === 12
-                                ? "12pm"
-                                : `${hourData.hour - 12}`;
+                            ? `${hourData.hour}`
+                            : hourData.hour === 12
+                            ? "12pm"
+                            : `${hourData.hour - 12}`;
 
                         return (
                           <g key={idx}>
@@ -1468,10 +1597,10 @@ function WrappedPage() {
                           peakLocalHour === 0
                             ? "midnight"
                             : peakLocalHour < 12
-                              ? `${peakLocalHour}am`
-                              : peakLocalHour === 12
-                                ? "noon"
-                                : `${peakLocalHour - 12}pm`;
+                            ? `${peakLocalHour}am`
+                            : peakLocalHour === 12
+                            ? "noon"
+                            : `${peakLocalHour - 12}pm`;
 
                         if (peakLocalHour >= 0 && peakLocalHour < 6) {
                           return `Peak at ${peakDisplay} - late night sessions`;
@@ -1534,8 +1663,8 @@ function WrappedPage() {
                   {data.longest_streak >= 60
                     ? `Some people meditate. You just hit play.`
                     : data.longest_streak >= 30
-                      ? `Music isn't background noise for you—it's the soundtrack.`
-                      : `Consistency pays off. Keep it going.`}
+                    ? `Music isn't background noise for you—it's the soundtrack.`
+                    : `Consistency pays off. Keep it going.`}
                 </p>
               </div>
             </FadeUpSection>
@@ -1553,7 +1682,7 @@ function WrappedPage() {
                       <div className="w-8" />
                       {generateCalendarWeeks(
                         data.year,
-                        data.activity_graph,
+                        data.activity_graph
                       ).map((week, weekIdx) => {
                         const firstDate = week[0];
                         const isFirstWeekOfMonth = firstDate.getDate() <= 7;
@@ -1589,16 +1718,15 @@ function WrappedPage() {
                           <div className="w-8 text-xs text-white/30">{day}</div>
                           {generateCalendarWeeks(
                             data.year,
-                            data.activity_graph,
+                            data.activity_graph
                           ).map((week, weekIdx) => {
                             const date = week[dayIdx];
                             const bgColor = getActivityColor(
                               date,
-                              data.activity_graph,
+                              data.activity_graph
                             );
                             const activity = data.activity_graph.find(
-                              (a) =>
-                                a.date === date.toISOString().split("T")[0],
+                              (a) => a.date === date.toISOString().split("T")[0]
                             );
                             return (
                               <motion.div
@@ -1610,12 +1738,14 @@ function WrappedPage() {
                                   duration: 0.2,
                                   delay: 0.4 + weekIdx * 0.005 + dayIdx * 0.01,
                                 }}
-                                title={`${date.toDateString()}: ${((activity?.minutes || 0) / 60).toFixed(1)} hours`}
+                                title={`${date.toDateString()}: ${(
+                                  (activity?.minutes || 0) / 60
+                                ).toFixed(1)} hours`}
                               />
                             );
                           })}
                         </div>
-                      ),
+                      )
                     )}
                   </div>
                 </div>
@@ -1627,7 +1757,7 @@ function WrappedPage() {
                       <div className="h-6" />
                       {generateCalendarWeeks(
                         data.year,
-                        data.activity_graph,
+                        data.activity_graph
                       ).map((week, weekIdx) => {
                         const firstDate = week[0];
                         const isFirstWeekOfMonth = firstDate.getDate() <= 7;
@@ -1665,16 +1795,15 @@ function WrappedPage() {
                           </div>
                           {generateCalendarWeeks(
                             data.year,
-                            data.activity_graph,
+                            data.activity_graph
                           ).map((week, weekIdx) => {
                             const date = week[dayIdx];
                             const bgColor = getActivityColor(
                               date,
-                              data.activity_graph,
+                              data.activity_graph
                             );
                             const activity = data.activity_graph.find(
-                              (a) =>
-                                a.date === date.toISOString().split("T")[0],
+                              (a) => a.date === date.toISOString().split("T")[0]
                             );
                             return (
                               <motion.div
@@ -1686,12 +1815,14 @@ function WrappedPage() {
                                   duration: 0.2,
                                   delay: 0.4 + weekIdx * 0.005 + dayIdx * 0.01,
                                 }}
-                                title={`${date.toDateString()}: ${((activity?.minutes || 0) / 60).toFixed(1)} hours`}
+                                title={`${date.toDateString()}: ${(
+                                  (activity?.minutes || 0) / 60
+                                ).toFixed(1)} hours`}
                               />
                             );
                           })}
                         </div>
-                      ),
+                      )
                     )}
                   </div>
                 </div>
@@ -1764,7 +1895,7 @@ function WrappedPage() {
                         .slice(0, 3)
                         .reduce((acc, a) => acc + a.minutes, 0) /
                         data.total_minutes) *
-                        100,
+                        100
                     )}
                     duration={2}
                   />
@@ -1841,7 +1972,7 @@ function WrappedPage() {
                   .slice(0, 3)
                   .reduce((acc, a) => acc + a.minutes, 0) /
                   data.total_minutes) *
-                  100,
+                  100
               ) >= 25
                 ? "You know what you like, and you really commit to it."
                 : "Focused, but still leaving room for discovery."}
@@ -1917,7 +2048,7 @@ function WrappedPage() {
                   generateShareImage(
                     // @ts-ignore
                     topStatsCardRef,
-                    `wrapped-${data.year}-stats.png`,
+                    `wrapped-${data.year}-stats.png`
                   )
                 }
                 disabled={generatingImage}
@@ -1930,7 +2061,7 @@ function WrappedPage() {
                   generateShareImage(
                     // @ts-ignore
                     topArtistCardRef,
-                    `wrapped-${data.year}-artist.png`,
+                    `wrapped-${data.year}-artist.png`
                   )
                 }
                 disabled={generatingImage}
@@ -1943,7 +2074,7 @@ function WrappedPage() {
                   generateShareImage(
                     // @ts-ignore
                     activityCardRef,
-                    `wrapped-${data.year}-activity.png`,
+                    `wrapped-${data.year}-activity.png`
                   )
                 }
                 disabled={generatingImage}
@@ -1956,7 +2087,7 @@ function WrappedPage() {
                   generateShareImage(
                     // @ts-ignore
                     overallCardRef,
-                    `wrapped-${data.year}-overall.png`,
+                    `wrapped-${data.year}-overall.png`
                   )
                 }
                 disabled={generatingImage}
@@ -2029,7 +2160,17 @@ function WrappedPage() {
                   </div>
                 </div>
 
-                <div className="text-center">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    {data.profile_picture && (
+                      <img
+                        src={data.profile_picture}
+                        alt={handle}
+                        className="w-12 h-12 rounded-full border border-white/20"
+                      />
+                    )}
+                    <p className="text-2xl text-white/60">@{handle}</p>
+                  </div>
                   <p className="text-2xl text-white/40">yearinmusic.teal.fm</p>
                 </div>
               </div>
@@ -2085,7 +2226,17 @@ function WrappedPage() {
                   </div>
                 </div>
 
-                <div className="text-center">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    {data.profile_picture && (
+                      <img
+                        src={data.profile_picture}
+                        alt={handle}
+                        className="w-12 h-12 rounded-full border border-white/20"
+                      />
+                    )}
+                    <p className="text-2xl text-white/60">@{handle}</p>
+                  </div>
                   <p className="text-2xl text-white/40">yearinmusic.teal.fm</p>
                 </div>
               </div>
@@ -2119,7 +2270,7 @@ function WrappedPage() {
                               data.year,
                               data.activity_graph,
                               1,
-                              6,
+                              6
                             ).map((week, weekIdx) => {
                               const firstDate = week[0];
                               const isFirstWeekOfMonth =
@@ -2157,28 +2308,30 @@ function WrappedPage() {
                                   data.year,
                                   data.activity_graph,
                                   1,
-                                  6,
+                                  6
                                 ).map((week, weekIdx) => {
                                   const date = week[dayIdx];
                                   const bgColor = getActivityColor(
                                     date,
-                                    data.activity_graph,
+                                    data.activity_graph
                                   );
                                   const activity = data.activity_graph.find(
                                     (a) =>
                                       a.date ===
-                                      date.toISOString().split("T")[0],
+                                      date.toISOString().split("T")[0]
                                   );
                                   return (
                                     <div
                                       key={weekIdx}
                                       className={`w-8 h-8 rounded ${bgColor}`}
-                                      title={`${date.toDateString()}: ${((activity?.minutes || 0) / 60).toFixed(1)} hours`}
+                                      title={`${date.toDateString()}: ${(
+                                        (activity?.minutes || 0) / 60
+                                      ).toFixed(1)} hours`}
                                     />
                                   );
                                 })}
                               </div>
-                            ),
+                            )
                           )}
                           <div className="h-2" />
                           <div className="flex gap-1.5">
@@ -2187,7 +2340,7 @@ function WrappedPage() {
                               data.year,
                               data.activity_graph,
                               7,
-                              12,
+                              12
                             ).map((week, weekIdx) => {
                               const firstDate = week[0];
                               const isFirstWeekOfMonth =
@@ -2231,28 +2384,30 @@ function WrappedPage() {
                                   data.year,
                                   data.activity_graph,
                                   7,
-                                  12,
+                                  12
                                 ).map((week, weekIdx) => {
                                   const date = week[dayIdx];
                                   const bgColor = getActivityColor(
                                     date,
-                                    data.activity_graph,
+                                    data.activity_graph
                                   );
                                   const activity = data.activity_graph.find(
                                     (a) =>
                                       a.date ===
-                                      date.toISOString().split("T")[0],
+                                      date.toISOString().split("T")[0]
                                   );
                                   return (
                                     <div
                                       key={weekIdx}
                                       className={`w-8 h-8 rounded ${bgColor}`}
-                                      title={`${date.toDateString()}: ${((activity?.minutes || 0) / 60).toFixed(1)} hours`}
+                                      title={`${date.toDateString()}: ${(
+                                        (activity?.minutes || 0) / 60
+                                      ).toFixed(1)} hours`}
                                     />
                                   );
                                 })}
                               </div>
-                            ),
+                            )
                           )}
                         </div>
                       </div>
@@ -2266,7 +2421,7 @@ function WrappedPage() {
                           <div className="w-8" />
                           {generateCalendarWeeks(
                             data.year,
-                            data.activity_graph,
+                            data.activity_graph
                           ).map((week, weekIdx) => {
                             const firstDate = week[0];
                             const isFirstWeekOfMonth = firstDate.getDate() <= 7;
@@ -2307,27 +2462,29 @@ function WrappedPage() {
                               </div>
                               {generateCalendarWeeks(
                                 data.year,
-                                data.activity_graph,
+                                data.activity_graph
                               ).map((week, weekIdx) => {
                                 const date = week[dayIdx];
                                 const bgColor = getActivityColor(
                                   date,
-                                  data.activity_graph,
+                                  data.activity_graph
                                 );
                                 const activity = data.activity_graph.find(
                                   (a) =>
-                                    a.date === date.toISOString().split("T")[0],
+                                    a.date === date.toISOString().split("T")[0]
                                 );
                                 return (
                                   <div
                                     key={weekIdx}
                                     className={`w-8 h-8 rounded ${bgColor}`}
-                                    title={`${date.toDateString()}: ${((activity?.minutes || 0) / 60).toFixed(1)} hours`}
+                                    title={`${date.toDateString()}: ${(
+                                      (activity?.minutes || 0) / 60
+                                    ).toFixed(1)} hours`}
                                   />
                                 );
                               })}
                             </div>
-                          ),
+                          )
                         )}
                       </div>
                     </div>
@@ -2343,7 +2500,17 @@ function WrappedPage() {
                   </div>
                 </div>
 
-                <div className="text-center">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    {data.profile_picture && (
+                      <img
+                        src={data.profile_picture}
+                        alt={handle}
+                        className="w-12 h-12 rounded-full border border-white/20"
+                      />
+                    )}
+                    <p className="text-2xl text-white/60">@{handle}</p>
+                  </div>
                   <p className="text-2xl text-white/40">yearinmusic.teal.fm</p>
                 </div>
               </div>
@@ -2376,7 +2543,17 @@ function WrappedPage() {
                   </div>
                 )}
                 <div>
-                  <p className="text-3xl uppercase tracking-[0.3em] text-white/40 mb-12">
+                  <div className="flex items-center gap-4 mb-4">
+                    {data.profile_picture && (
+                      <img
+                        src={data.profile_picture}
+                        alt={handle}
+                        className="w-14 h-14 rounded-full border-2 opacity-75 border-white/20"
+                      />
+                    )}
+                    <p className="text-3xl text-white/40">@{handle}'s</p>
+                  </div>
+                  <p className="text-3xl uppercase tracking-[0.3em] text-white/40 mb-8">
                     {data.year} year in music
                   </p>
                 </div>
@@ -2418,7 +2595,7 @@ function WrappedPage() {
                     </div>
                   </div>
                 </div>
-                <div className="text-center mt-8">
+                <div className="flex items-center justify-between mt-8">
                   <p className="text-2xl text-white/40">yearinmusic.teal.fm</p>
                 </div>
               </div>

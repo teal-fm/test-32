@@ -48,6 +48,8 @@ pub struct WrappedData {
     pub longest_session_minutes: u32,   // longest continuous listening session
     #[serde(skip_serializing_if = "Option::is_none")]
     similar_users: Option<Vec<MusicBuddy>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    profile_picture: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -252,6 +254,20 @@ async fn get_wrapped(
         }
     };
 
+    // Fetch profile picture from AT Protocol
+    let profile_picture = match atproto::fetch_profile_picture(did).await {
+        Ok(url) => {
+            if url.is_some() {
+                tracing::info!("fetched profile picture for {}", did);
+            }
+            url
+        }
+        Err(e) => {
+            tracing::warn!("failed to fetch profile picture for {}: {}", did, e);
+            None
+        }
+    };
+
     let data = WrappedData {
         year,
         total_minutes: stats.total_minutes,
@@ -270,6 +286,7 @@ async fn get_wrapped(
         hourly_distribution: stats.hourly_distribution,
         top_hour: stats.top_hour,
         longest_session_minutes: stats.longest_session_minutes,
+        profile_picture,
     };
 
     if let Err(e) = db::cache_wrapped(&state.db, did, year, &data).await {

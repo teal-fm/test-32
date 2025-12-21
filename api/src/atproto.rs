@@ -6,6 +6,61 @@ use std::io::Cursor;
 
 const PLAY_COLLECTION: &str = "fm.teal.alpha.feed.play";
 
+#[derive(Debug, Deserialize)]
+struct BlobRef {
+    #[serde(rename = "$link")]
+    link: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct Blob {
+    #[serde(rename = "ref")]
+    blob_ref: BlobRef,
+    #[serde(rename = "mimeType")]
+    _mime_type: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct ProfileRecord {
+    avatar: Option<Blob>,
+}
+
+#[derive(Debug, Deserialize)]
+struct GetRecordResponse {
+    value: ProfileRecord,
+}
+
+/// Fetch user's profile picture URL from their AT Protocol repository
+pub async fn fetch_profile_picture(did: &str) -> Result<Option<String>> {
+    let pds = resolve_pds(did).await?;
+
+    // Fetch the profile record
+    let url = format!(
+        "{}/xrpc/com.atproto.repo.getRecord?repo={}&collection=app.bsky.actor.profile&rkey=self",
+        pds, did
+    );
+
+    let response = reqwest::get(&url).await?;
+
+    if !response.status().is_success() {
+        tracing::debug!("no profile record found for {}", did);
+        return Ok(None);
+    }
+
+    let record: GetRecordResponse = response.json().await?;
+
+    // If there's an avatar, construct the blob URL
+    if let Some(avatar) = record.value.avatar {
+        let blob_url = format!(
+            "{}/xrpc/com.atproto.sync.getBlob?did={}&cid={}",
+            pds, did, avatar.blob_ref.link
+        );
+        return Ok(Some(blob_url));
+    }
+
+    Ok(None)
+}
+
 fn extract_artists_from_play(play: &Play) -> (Vec<String>, Option<Vec<String>>) {
     // Handle new format with artists array
     if let Some(artists) = play.artists.as_ref() {
