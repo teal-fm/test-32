@@ -183,17 +183,71 @@ interface WrappedData {
 
 export const Route = createFileRoute("/wrapped/$handle")({
   component: WrappedPage,
-  head: ({ params }) => ({
-    meta: [
-      {
-        name: "description",
-        content: `${params.handle}'s year in music as tracked by Teal.fm - the best music tracking app.`,
-      },
-      {
-        title: `${params.handle}'s Year in Music`,
-      },
-    ],
-  }),
+  head: ({ params }) => {
+    const year = new Date().getFullYear();
+    const ogImageUrl = `http://localhost:3001/api/wrapped/${year}/og?handle=${encodeURIComponent(
+      params.handle
+    )}`;
+    const pageUrl = `https://yearinmusic.teal.fm/wrapped/${params.handle}`;
+
+    return {
+      meta: [
+        {
+          title: `@${params.handle}'s ${year} Teal.fm Year In Music`,
+        },
+        {
+          name: "description",
+          content: `${params.handle}'s year in music as tracked by Teal.fm - the best music tracking app.`,
+        },
+        // Open Graph
+        {
+          property: "og:title",
+          content: `@${params.handle}'s ${year} Teal.fm Year In Music`,
+        },
+        {
+          property: "og:description",
+          content: `Check out ${params.handle}'s year in music on Teal.fm!`,
+        },
+        {
+          property: "og:image",
+          content: ogImageUrl,
+        },
+        {
+          property: "og:image:width",
+          content: "1200",
+        },
+        {
+          property: "og:image:height",
+          content: "630",
+        },
+        {
+          property: "og:type",
+          content: "website",
+        },
+        {
+          property: "og:url",
+          content: pageUrl,
+        },
+        // Twitter Card
+        {
+          name: "twitter:card",
+          content: "summary_large_image",
+        },
+        {
+          name: "twitter:title",
+          content: `@${params.handle}'s ${year} Teal.fm Year In Music`,
+        },
+        {
+          name: "twitter:description",
+          content: `Check out ${params.handle}'s year in music on Teal.fm!`,
+        },
+        {
+          name: "twitter:image",
+          content: ogImageUrl,
+        },
+      ],
+    };
+  },
 });
 
 function getActivityColor(

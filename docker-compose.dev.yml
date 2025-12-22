@@ -38,6 +38,7 @@ services:
       - ./Cargo.lock:/app/Cargo.lock
       - ./.sqlx:/app/.sqlx
       - ./images:/app/images
+      - ./public:/app/public
       - cargo_cache:/usr/local/cargo/registry
       - target_cache:/app/target
     restart: unless-stopped

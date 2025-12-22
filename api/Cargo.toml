@@ -13,7 +13,7 @@ tower-http = { version = "0.5", features = ["cors", "trace"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 chrono = { version = "0.4", features = ["serde"] }
-reqwest = { version = "0.12", features = ["json"] }
+reqwest = { version = "0.12", features = ["json", "rustls-tls"] }
 base64 = "0.22"
 anyhow = "1"
 jacquard-common = "0.9"
@@ -23,3 +23,6 @@ serde_ipld_dagcbor = "0.6"
 repo-stream = "0.2.2"
 dotenvy = "0.15.7"
 tokio-util = "0.7.17"
+image = "0.25"
+imageproc = "0.25"
+ab_glyph = "0.2"

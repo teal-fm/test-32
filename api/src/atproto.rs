@@ -248,3 +248,25 @@ pub struct ScrobbleRecord {
     pub release_name: Option<String>,
     pub artist_mb_ids: Option<Vec<String>>,
 }
+
+#[derive(Debug, Deserialize)]
+struct MiniDocResponse {
+    did: String,
+}
+
+/// Resolve a handle to a DID using the Microcosm resolution service
+pub async fn resolve_handle_to_did(handle: &str) -> Result<String> {
+    let url = format!(
+        "https://slingshot.microcosm.blue/xrpc/com.bad-example.identity.resolveMiniDoc?identifier={}",
+        handle
+    );
+
+    let response = reqwest::get(&url).await?;
+
+    if !response.status().is_success() {
+        anyhow::bail!("failed to resolve handle: {}", response.status());
+    }
+
+    let doc: MiniDocResponse = response.json().await?;
+    Ok(doc.did)
+}
