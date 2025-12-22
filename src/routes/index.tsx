@@ -97,49 +97,56 @@ function Home() {
           {/* Single bar input + button */}
           <motion.div
             initial={{ opacity: 0 }}
-            animate={
-              isFocused
-                ? {
-                    opacity: 1,
-                    background: "rgba(255, 255, 255, 0.12)",
-                    boxShadow: "0 12px 40px rgba(0, 0, 0, 0.3)",
-                    scale: 1.01,
-                  }
-                : {
-                    opacity: 1,
-                    background: "rgba(255, 255, 255, 0.08)",
-                    border: "1px solid rgba(255, 255, 255, 0.12)",
-                    boxShadow: "0 8px 32px rgba(0, 0, 0, 0.2)",
-                  }
-            }
+            animate={{ opacity: 1 }}
             transition={{ duration: 0.6, delay: 0.2, ease: [0.33, 1, 0.68, 1] }}
-            whileHover={{
-              background: "rgba(255, 255, 255, 0.12)",
-              boxShadow: "0 12px 40px rgba(0, 0, 0, 0.3)",
-              scale: 1.01,
-            }}
-            className="rounded-full backdrop-blur-xl flex items-center gap-3 pl-8 pr-2 py-2"
-            style={{
-              background: "rgba(255, 255, 255, 0.08)",
-              border: "1px solid rgba(255, 255, 255, 0.12)",
-              boxShadow: "0 8px 32px rgba(0, 0, 0, 0.2)",
-            }}
+            className="flex flex-col sm:flex-row gap-3 sm:gap-0"
           >
-            <input
-              type="text"
-              value={handle}
-              onChange={(e) => setHandle(e.target.value)}
-              onFocus={() => setIsFocused(true)}
-              onBlur={() => setIsFocused(false)}
-              onKeyDown={handleKeyDown}
-              placeholder="username.bsky.social"
-              className="flex-1 bg-transparent border-none outline-none text-white text-lg placeholder:text-white/30"
-            />
+            {/* Input container */}
+            <motion.div
+              animate={
+                isFocused
+                  ? {
+                      background: "rgba(255, 255, 255, 0.12)",
+                      boxShadow: "0 12px 40px rgba(0, 0, 0, 0.3)",
+                      scale: 1.01,
+                    }
+                  : {
+                      background: "rgba(255, 255, 255, 0.08)",
+                      boxShadow: "0 8px 32px rgba(0, 0, 0, 0.2)",
+                    }
+              }
+              whileHover={{
+                background: "rgba(255, 255, 255, 0.12)",
+                boxShadow: "0 12px 40px rgba(0, 0, 0, 0.3)",
+              }}
+              className="flex-1 rounded-full sm:rounded-r-none backdrop-blur-xl flex items-center px-6 sm:pl-8 sm:pr-4 py-4 sm:py-2"
+              style={{
+                background: "rgba(255, 255, 255, 0.08)",
+                border: "1px solid rgba(255, 255, 255, 0.12)",
+                boxShadow: "0 8px 32px rgba(0, 0, 0, 0.2)",
+              }}
+            >
+              <input
+                type="text"
+                value={handle}
+                onChange={(e) => setHandle(e.target.value)}
+                onFocus={() => setIsFocused(true)}
+                onBlur={() => setIsFocused(false)}
+                onKeyDown={handleKeyDown}
+                placeholder="username.bsky.social"
+                className="flex-1 bg-transparent border-none outline-none text-white text-base sm:text-lg placeholder:text-white/30 w-full"
+              />
+            </motion.div>
+
+            {/* Button */}
             <Link
               to="/wrapped/$handle"
               params={{ handle: handle || "futur.blue" }}
               onClick={handleSubmit}
-              className="group relative px-8 py-3 bg-neutral-700/80 rounded-full font-medium text-base text-white/60 overflow-hidden transition-transform duration-200 hover:scale-102"
+              className="group relative px-8 py-4 sm:py-3 bg-neutral-700/80 sm:bg-neutral-700/80 rounded-full sm:rounded-l-none font-medium text-base text-white/60 overflow-hidden transition-all duration-200 hover:scale-[1.02] hover:bg-neutral-600/80 text-center border border-white/12 sm:border-l-0"
+              style={{
+                boxShadow: "0 8px 32px rgba(0, 0, 0, 0.2)",
+              }}
             >
               <span className="relative z-10">view your year</span>
               <div className="absolute inset-0 bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
