@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { motion } from "framer-motion";
 import { useState } from "react";
 
@@ -10,12 +10,28 @@ function Home() {
   const [handle, setHandle] = useState("");
   const [isFocused, setIsFocused] = useState(false);
   const [error, setError] = useState("");
+  const navigate = useNavigate({ from: "/" });
 
   const handleSubmit = (e: React.MouseEvent) => {
     if (!handle.trim()) {
       e.preventDefault();
       setError("please enter a handle");
       setTimeout(() => setError(""), 3000);
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      if (handle.trim()) {
+        navigate({
+          to: "/wrapped/$handle",
+          params: { handle: handle || "futur.blue" },
+        });
+      } else {
+        setError("please enter a handle");
+        setTimeout(() => setError(""), 3000);
+      }
     }
   };
 
@@ -103,6 +119,7 @@ function Home() {
               onChange={(e) => setHandle(e.target.value)}
               onFocus={() => setIsFocused(true)}
               onBlur={() => setIsFocused(false)}
+              onKeyDown={handleKeyDown}
               placeholder="username.bsky.social"
               className="flex-1 bg-transparent border-none outline-none text-white text-lg placeholder:text-white/30"
             />
