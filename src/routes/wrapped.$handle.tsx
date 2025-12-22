@@ -183,6 +183,17 @@ interface WrappedData {
 
 export const Route = createFileRoute("/wrapped/$handle")({
   component: WrappedPage,
+  head: ({ params }) => ({
+    meta: [
+      {
+        name: "description",
+        content: `${params.handle}'s year in music as tracked by Teal.fm - the best music tracking app.`,
+      },
+      {
+        title: `${params.handle}'s Year in Music`,
+      },
+    ],
+  }),
 });
 
 function getActivityColor(
@@ -415,8 +426,8 @@ function FloatingArtistBubble({
             alt={artist.name}
             className="w-full h-full object-cover"
           />
-          <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-          <div className="absolute inset-0 flex items-end justify-center pb-1 sm:pb-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+          <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-200" />
+          <div className="absolute inset-0 flex items-end justify-center pb-1 sm:pb-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
             <span className="text-white text-[0.6rem] sm:text-xs font-medium drop-shadow-lg px-1 text-center leading-tight">
               {artist.name}
             </span>
@@ -635,7 +646,7 @@ function WrappedPage() {
 
         <div className="max-w-7xl mx-auto w-full relative z-10">
           <div className="relative flex items-center justify-center min-h-[80vh]">
-            <div className="absolute inset-0 pointer-events-none">
+            <div className="absolute inset-0">
               {/* container needs defined height and relative positioning */}
               {/* container with padding to prevent edge cutoff */}
               <div className="relative h-screen sm:max-h-[1000px] lg:max-h-[1000px] w-full max-w-7xl mx-auto px-8 sm:px-12">
@@ -1124,7 +1135,7 @@ function WrappedPage() {
       )}
 
       {/* Top Tracks - Vertical List */}
-      <section className="max-h-screen flex items-center px-8 md:px-16 lg:px-24 py-24 pb-32 relative overflow-visible">
+      <section className="max-h-screen mt-40 flex items-center px-8 md:px-16 lg:px-24 py-24 pb-32 relative overflow-visible">
         <div className="absolute inset-0 opacity-20">
           <SimplexNoise
             colors={["#00d9ff", "#9900ff"]}

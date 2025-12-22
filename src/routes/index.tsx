@@ -4,6 +4,18 @@ import { useState } from "react";
 
 export const Route = createFileRoute("/")({
   component: Home,
+  head: () => ({
+    meta: [
+      {
+        name: "description",
+        content:
+          "Review your year in music as tracked by Teal.fm - the best music tracking app.",
+      },
+      {
+        title: "Teal.fm's Year in Music",
+      },
+    ],
+  }),
 });
 
 function Home() {
