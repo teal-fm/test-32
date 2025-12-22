@@ -9,55 +9,48 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as WrappedRouteImport } from './routes/wrapped'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as WrappedHandleRouteImport } from './routes/wrapped.$handle'
 
-const WrappedRoute = WrappedRouteImport.update({
-  id: '/wrapped',
-  path: '/wrapped',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const WrappedHandleRoute = WrappedHandleRouteImport.update({
+  id: '/wrapped/$handle',
+  path: '/wrapped/$handle',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/wrapped': typeof WrappedRoute
+  '/wrapped/$handle': typeof WrappedHandleRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/wrapped': typeof WrappedRoute
+  '/wrapped/$handle': typeof WrappedHandleRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
-  '/wrapped': typeof WrappedRoute
+  '/wrapped/$handle': typeof WrappedHandleRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/wrapped'
+  fullPaths: '/' | '/wrapped/$handle'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/wrapped'
-  id: '__root__' | '/' | '/wrapped'
+  to: '/' | '/wrapped/$handle'
+  id: '__root__' | '/' | '/wrapped/$handle'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  WrappedRoute: typeof WrappedRoute
+  WrappedHandleRoute: typeof WrappedHandleRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/wrapped': {
-      id: '/wrapped'
-      path: '/wrapped'
-      fullPath: '/wrapped'
-      preLoaderRoute: typeof WrappedRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/': {
       id: '/'
       path: '/'
@@ -65,12 +58,19 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/wrapped/$handle': {
+      id: '/wrapped/$handle'
+      path: '/wrapped/$handle'
+      fullPath: '/wrapped/$handle'
+      preLoaderRoute: typeof WrappedHandleRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  WrappedRoute: WrappedRoute,
+  WrappedHandleRoute: WrappedHandleRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

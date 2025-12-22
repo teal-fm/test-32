@@ -6,6 +6,61 @@ use std::io::Cursor;
 
 const PLAY_COLLECTION: &str = "fm.teal.alpha.feed.play";
 
+#[derive(Debug, Deserialize)]
+struct BlobRef {
+    #[serde(rename = "$link")]
+    link: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct Blob {
+    #[serde(rename = "ref")]
+    blob_ref: BlobRef,
+    #[serde(rename = "mimeType")]
+    _mime_type: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct ProfileRecord {
+    avatar: Option<Blob>,
+}
+
+#[derive(Debug, Deserialize)]
+struct GetRecordResponse {
+    value: ProfileRecord,
+}
+
+/// Fetch user's profile picture URL from their AT Protocol repository
+pub async fn fetch_profile_picture(did: &str) -> Result<Option<String>> {
+    let pds = resolve_pds(did).await?;
+
+    // Fetch the profile record
+    let url = format!(
+        "{}/xrpc/com.atproto.repo.getRecord?repo={}&collection=app.bsky.actor.profile&rkey=self",
+        pds, did
+    );
+
+    let response = reqwest::get(&url).await?;
+
+    if !response.status().is_success() {
+        tracing::debug!("no profile record found for {}", did);
+        return Ok(None);
+    }
+
+    let record: GetRecordResponse = response.json().await?;
+
+    // If there's an avatar, construct the blob URL
+    if let Some(avatar) = record.value.avatar {
+        let blob_url = format!(
+            "{}/xrpc/com.atproto.sync.getBlob?did={}&cid={}",
+            pds, did, avatar.blob_ref.link
+        );
+        return Ok(Some(blob_url));
+    }
+
+    Ok(None)
+}
+
 fn extract_artists_from_play(play: &Play) -> (Vec<String>, Option<Vec<String>>) {
     // Handle new format with artists array
     if let Some(artists) = play.artists.as_ref() {
@@ -192,4 +247,26 @@ pub struct ScrobbleRecord {
     pub release_mb_id: Option<String>,
     pub release_name: Option<String>,
     pub artist_mb_ids: Option<Vec<String>>,
+}
+
+#[derive(Debug, Deserialize)]
+struct MiniDocResponse {
+    did: String,
+}
+
+/// Resolve a handle to a DID using the Microcosm resolution service
+pub async fn resolve_handle_to_did(handle: &str) -> Result<String> {
+    let url = format!(
+        "https://slingshot.microcosm.blue/xrpc/com.bad-example.identity.resolveMiniDoc?identifier={}",
+        handle
+    );
+
+    let response = reqwest::get(&url).await?;
+
+    if !response.status().is_success() {
+        anyhow::bail!("failed to resolve handle: {}", response.status());
+    }
+
+    let doc: MiniDocResponse = response.json().await?;
+    Ok(doc.did)
 }
