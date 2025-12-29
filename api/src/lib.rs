@@ -56,6 +56,10 @@ pub struct WrappedData {
 #[derive(Debug, Serialize, Deserialize)]
 struct MusicBuddy {
     did: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    handle: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    profile_picture: Option<String>,
     similarity_score: f64,
     shared_artists: Vec<String>,
     shared_artist_count: u32,
@@ -241,19 +245,40 @@ async fn get_wrapped(
     // Sort by date to ensure chronological order for calendar generation
     activity_graph.sort_by(|a, b| a.date.cmp(&b.date));
 
-    // Find similar users (music buddies)
+    // Find similar users (music buddies) and resolve their profiles
     let similar_users = match db::find_similar_users(&state.db, did, year, 3).await {
-        Ok(users) => Some(
-            users
-                .into_iter()
-                .map(|u| MusicBuddy {
+        Ok(users) => {
+            let mut buddies = Vec::new();
+            for u in users {
+                // Resolve handle and profile picture for each similar user
+                let (handle, profile_picture) = match atproto::resolve_did_document(&u.did).await {
+                    Ok(doc) => {
+                        let pfp = match atproto::fetch_profile_picture(&u.did).await {
+                            Ok(url) => url,
+                            Err(e) => {
+                                tracing::debug!("failed to fetch pfp for {}: {}", u.did, e);
+                                None
+                            }
+                        };
+                        (doc.handle, pfp)
+                    }
+                    Err(e) => {
+                        tracing::debug!("failed to resolve did doc for {}: {}", u.did, e);
+                        (None, None)
+                    }
+                };
+
+                buddies.push(MusicBuddy {
                     did: u.did,
+                    handle,
+                    profile_picture,
                     similarity_score: u.similarity_score,
                     shared_artist_count: u.shared_artists.len() as u32,
                     shared_artists: u.shared_artists,
-                })
-                .collect(),
-        ),
+                });
+            }
+            Some(buddies)
+        }
         Err(e) => {
             tracing::warn!("failed to find similar users: {}", e);
             None
@@ -313,6 +338,26 @@ async fn get_og_image(
     Query(params): Query<OgImageQuery>,
 ) -> Result<Response, axum::http::StatusCode> {
     let handle = &params.handle;
+
+    // Check for cached OG image on disk first
+    let cache_dir = std::path::Path::new("./images/og");
+    let cache_filename = format!("{}_{}.png", handle.replace('.', "_"), year);
+    let cache_path = cache_dir.join(&cache_filename);
+
+    if cache_path.exists() {
+        tracing::info!("serving cached OG image for {} (year {})", handle, year);
+        let file = File::open(&cache_path)
+            .await
+            .map_err(|_| axum::http::StatusCode::INTERNAL_SERVER_ERROR)?;
+        let stream = ReaderStream::new(file);
+        let body = Body::from_stream(stream);
+
+        return Ok(Response::builder()
+            .header(header::CONTENT_TYPE, "image/png")
+            .header(header::CACHE_CONTROL, "public, max-age=86400")
+            .body(body)
+            .unwrap());
+    }
 
     // Resolve handle to DID
     let did = atproto::resolve_handle_to_did(handle).await.map_err(|e| {
@@ -421,6 +466,15 @@ async fn get_og_image(
         tracing::error!("failed to generate OG image: {}", e);
         axum::http::StatusCode::INTERNAL_SERVER_ERROR
     })?;
+
+    // Cache the generated image to disk
+    if let Err(e) = tokio::fs::create_dir_all(cache_dir).await {
+        tracing::warn!("failed to create og_images cache directory: {}", e);
+    } else if let Err(e) = tokio::fs::write(&cache_path, &image_bytes).await {
+        tracing::warn!("failed to cache OG image to disk: {}", e);
+    } else {
+        tracing::info!("cached OG image to {}", cache_path.display());
+    }
 
     Ok(Response::builder()
         .header(header::CONTENT_TYPE, "image/png")

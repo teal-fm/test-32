@@ -21,7 +21,10 @@ pub async fn generate_og_image(
 
     // Fetch and blur the top artist image for background
     if let Some(artist_url) = top_artist_image_url {
-        tracing::info!("fetching artist background image from URL: '{}'", artist_url);
+        tracing::info!(
+            "fetching artist background image from URL: '{}'",
+            artist_url
+        );
         match fetch_image(artist_url).await {
             Ok(artist_img) => {
                 tracing::info!("successfully fetched artist image, applying blur");
@@ -70,7 +73,12 @@ pub async fn generate_og_image(
         }
     } else {
         // Draw a placeholder circle
-        draw_placeholder_avatar(&mut img, profile_x as i32, profile_y as i32, profile_size / 2);
+        draw_placeholder_avatar(
+            &mut img,
+            profile_x as i32,
+            profile_y as i32,
+            profile_size / 2,
+        );
     }
 
     // Draw the handle text
@@ -88,7 +96,7 @@ pub async fn generate_og_image(
     );
 
     // Draw main title with dynamic year
-    let title_text = format!("{} Teal.fm", year);
+    let title_text = format!("{} teal.fm", year);
     let title_scale = PxScale::from(90.0);
     let title_width = text_width(&font, &title_text, title_scale);
     draw_text_mut(
@@ -125,27 +133,27 @@ pub async fn generate_og_image(
 
 async fn fetch_image(url: &str) -> Result<DynamicImage> {
     tracing::debug!("fetch_image called with URL: {}", url);
-    
+
     // Check if this is a local path (starts with /images/)
     if url.starts_with("/images/") {
         // Read directly from filesystem
         let file_path = format!(".{}", url); // Convert /images/... to ./images/...
         tracing::debug!("reading local image from: {}", file_path);
-        
+
         let bytes = tokio::fs::read(&file_path).await.map_err(|e| {
             tracing::error!("failed to read local image {}: {}", file_path, e);
             anyhow::anyhow!("file read error: {}", e)
         })?;
-        
+
         let img = image::load_from_memory(&bytes).map_err(|e| {
             tracing::error!("failed to decode local image: {}", e);
             anyhow::anyhow!("image decode error: {}", e)
         })?;
-        
+
         tracing::info!("successfully loaded local image: {}", file_path);
         return Ok(img);
     }
-    
+
     // Otherwise, fetch from URL
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(10))
@@ -154,7 +162,7 @@ async fn fetch_image(url: &str) -> Result<DynamicImage> {
             tracing::error!("failed to build reqwest client: {}", e);
             anyhow::anyhow!("client build error: {}", e)
         })?;
-    
+
     let response = client
         .get(url)
         .header("User-Agent", "TealWrapped/1.0")
@@ -164,24 +172,28 @@ async fn fetch_image(url: &str) -> Result<DynamicImage> {
             tracing::error!("failed to send request to {}: {}", url, e);
             anyhow::anyhow!("request error: {}", e)
         })?;
-    
+
     if !response.status().is_success() {
-        tracing::warn!("image request returned status {}: {}", response.status(), url);
+        tracing::warn!(
+            "image request returned status {}: {}",
+            response.status(),
+            url
+        );
         return Err(anyhow::anyhow!("HTTP {}", response.status()));
     }
-    
+
     let bytes = response.bytes().await.map_err(|e| {
         tracing::error!("failed to read response bytes: {}", e);
         anyhow::anyhow!("read error: {}", e)
     })?;
-    
+
     tracing::debug!("received {} bytes from {}", bytes.len(), url);
-    
+
     let img = image::load_from_memory(&bytes).map_err(|e| {
         tracing::error!("failed to decode image: {}", e);
         anyhow::anyhow!("image decode error: {}", e)
     })?;
-    
+
     Ok(img)
 }
 
@@ -208,8 +220,14 @@ fn resize_to_cover(img: &DynamicImage, target_width: u32, target_height: u32) ->
     let x_offset = (new_width.saturating_sub(target_width)) / 2;
     let y_offset = (new_height.saturating_sub(target_height)) / 2;
 
-    image::imageops::crop_imm(&resized.to_rgba8(), x_offset, y_offset, target_width, target_height)
-        .to_image()
+    image::imageops::crop_imm(
+        &resized.to_rgba8(),
+        x_offset,
+        y_offset,
+        target_width,
+        target_height,
+    )
+    .to_image()
 }
 
 fn darken_image(img: &RgbaImage, factor: f32) -> RgbaImage {
@@ -280,9 +298,12 @@ fn make_circular(img: &RgbaImage) -> RgbaImage {
                 let pixel = result.get_pixel_mut(x, y);
                 // Blend white border
                 let border_alpha = 0.5;
-                pixel[0] = ((pixel[0] as f32 * (1.0 - border_alpha)) + (255.0 * border_alpha)) as u8;
-                pixel[1] = ((pixel[1] as f32 * (1.0 - border_alpha)) + (255.0 * border_alpha)) as u8;
-                pixel[2] = ((pixel[2] as f32 * (1.0 - border_alpha)) + (255.0 * border_alpha)) as u8;
+                pixel[0] =
+                    ((pixel[0] as f32 * (1.0 - border_alpha)) + (255.0 * border_alpha)) as u8;
+                pixel[1] =
+                    ((pixel[1] as f32 * (1.0 - border_alpha)) + (255.0 * border_alpha)) as u8;
+                pixel[2] =
+                    ((pixel[2] as f32 * (1.0 - border_alpha)) + (255.0 * border_alpha)) as u8;
             }
         }
     }
@@ -316,4 +337,3 @@ fn text_width(font: &FontRef, text: &str, scale: PxScale) -> u32 {
     }
     width as u32
 }
-

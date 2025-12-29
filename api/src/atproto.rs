@@ -92,21 +92,50 @@ fn extract_artists_from_play(play: &Play) -> (Vec<String>, Option<Vec<String>>) 
     (names, mbids)
 }
 
-/// Resolve DID to find the user's PDS endpoint
-async fn resolve_pds(did: &str) -> Result<String> {
+/// Cached DID document to avoid duplicate requests
+#[derive(Debug, Clone)]
+pub struct DidDocument {
+    pub pds: String,
+    pub handle: Option<String>,
+}
+
+/// Resolve DID to get both PDS endpoint and handle
+pub async fn resolve_did_document(did: &str) -> Result<DidDocument> {
     let plc_url = format!("https://plc.directory/{}", did);
     let response = reqwest::get(&plc_url).await?;
     let doc: serde_json::Value = response.json().await?;
 
-    let service = doc
+    let pds = doc
         .get("service")
         .and_then(|s| s.as_array())
         .and_then(|arr| arr.first())
         .and_then(|s| s.get("serviceEndpoint"))
         .and_then(|e| e.as_str())
-        .ok_or_else(|| anyhow::anyhow!("no PDS found in DID document"))?;
+        .ok_or_else(|| anyhow::anyhow!("no PDS found in DID document"))?
+        .to_string();
 
-    Ok(service.to_string())
+    // Extract handle from alsoKnownAs (format: "at://handle")
+    let handle = doc
+        .get("alsoKnownAs")
+        .and_then(|a| a.as_array())
+        .and_then(|arr| arr.first())
+        .and_then(|h| h.as_str())
+        .and_then(|h| h.strip_prefix("at://"))
+        .map(|h| h.to_string());
+
+    Ok(DidDocument { pds, handle })
+}
+
+/// Resolve DID to find the user's PDS endpoint
+async fn resolve_pds(did: &str) -> Result<String> {
+    let doc = resolve_did_document(did).await?;
+    Ok(doc.pds)
+}
+
+/// Resolve DID to get the user's handle
+pub async fn resolve_handle(did: &str) -> Result<Option<String>> {
+    let doc = resolve_did_document(did).await?;
+    Ok(doc.handle)
 }
 
 /// Download and parse a CAR file from a user's AT Protocol repo

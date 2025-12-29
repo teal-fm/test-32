@@ -9,10 +9,10 @@ export const Route = createFileRoute("/")({
       {
         name: "description",
         content:
-          "Review your year in music as tracked by Teal.fm - the best music tracking app.",
+          "Review your year in music as tracked by teal.fm - the best music tracking app.",
       },
       {
-        title: "Teal.fm's Year in Music",
+        title: "teal.fm's Year in Music",
       },
     ],
   }),
