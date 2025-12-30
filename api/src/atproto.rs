@@ -6,6 +6,61 @@ use std::io::Cursor;
 
 const PLAY_COLLECTION: &str = "fm.teal.alpha.feed.play";
 
+#[derive(Debug, Deserialize)]
+struct BlobRef {
+    #[serde(rename = "$link")]
+    link: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct Blob {
+    #[serde(rename = "ref")]
+    blob_ref: BlobRef,
+    #[serde(rename = "mimeType")]
+    _mime_type: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct ProfileRecord {
+    avatar: Option<Blob>,
+}
+
+#[derive(Debug, Deserialize)]
+struct GetRecordResponse {
+    value: ProfileRecord,
+}
+
+/// Fetch user's profile picture URL from their AT Protocol repository
+pub async fn fetch_profile_picture(did: &str) -> Result<Option<String>> {
+    let pds = resolve_pds(did).await?;
+
+    // Fetch the profile record
+    let url = format!(
+        "{}/xrpc/com.atproto.repo.getRecord?repo={}&collection=app.bsky.actor.profile&rkey=self",
+        pds, did
+    );
+
+    let response = reqwest::get(&url).await?;
+
+    if !response.status().is_success() {
+        tracing::debug!("no profile record found for {}", did);
+        return Ok(None);
+    }
+
+    let record: GetRecordResponse = response.json().await?;
+
+    // If there's an avatar, construct the blob URL
+    if let Some(avatar) = record.value.avatar {
+        let blob_url = format!(
+            "{}/xrpc/com.atproto.sync.getBlob?did={}&cid={}",
+            pds, did, avatar.blob_ref.link
+        );
+        return Ok(Some(blob_url));
+    }
+
+    Ok(None)
+}
+
 fn extract_artists_from_play(play: &Play) -> (Vec<String>, Option<Vec<String>>) {
     // Handle new format with artists array
     if let Some(artists) = play.artists.as_ref() {
@@ -37,21 +92,50 @@ fn extract_artists_from_play(play: &Play) -> (Vec<String>, Option<Vec<String>>) 
     (names, mbids)
 }
 
-/// Resolve DID to find the user's PDS endpoint
-async fn resolve_pds(did: &str) -> Result<String> {
+/// Cached DID document to avoid duplicate requests
+#[derive(Debug, Clone)]
+pub struct DidDocument {
+    pub pds: String,
+    pub handle: Option<String>,
+}
+
+/// Resolve DID to get both PDS endpoint and handle
+pub async fn resolve_did_document(did: &str) -> Result<DidDocument> {
     let plc_url = format!("https://plc.directory/{}", did);
     let response = reqwest::get(&plc_url).await?;
     let doc: serde_json::Value = response.json().await?;
 
-    let service = doc
+    let pds = doc
         .get("service")
         .and_then(|s| s.as_array())
         .and_then(|arr| arr.first())
         .and_then(|s| s.get("serviceEndpoint"))
         .and_then(|e| e.as_str())
-        .ok_or_else(|| anyhow::anyhow!("no PDS found in DID document"))?;
+        .ok_or_else(|| anyhow::anyhow!("no PDS found in DID document"))?
+        .to_string();
 
-    Ok(service.to_string())
+    // Extract handle from alsoKnownAs (format: "at://handle")
+    let handle = doc
+        .get("alsoKnownAs")
+        .and_then(|a| a.as_array())
+        .and_then(|arr| arr.first())
+        .and_then(|h| h.as_str())
+        .and_then(|h| h.strip_prefix("at://"))
+        .map(|h| h.to_string());
+
+    Ok(DidDocument { pds, handle })
+}
+
+/// Resolve DID to find the user's PDS endpoint
+async fn resolve_pds(did: &str) -> Result<String> {
+    let doc = resolve_did_document(did).await?;
+    Ok(doc.pds)
+}
+
+/// Resolve DID to get the user's handle
+pub async fn resolve_handle(did: &str) -> Result<Option<String>> {
+    let doc = resolve_did_document(did).await?;
+    Ok(doc.handle)
 }
 
 /// Download and parse a CAR file from a user's AT Protocol repo
@@ -192,4 +276,26 @@ pub struct ScrobbleRecord {
     pub release_mb_id: Option<String>,
     pub release_name: Option<String>,
     pub artist_mb_ids: Option<Vec<String>>,
+}
+
+#[derive(Debug, Deserialize)]
+struct MiniDocResponse {
+    did: String,
+}
+
+/// Resolve a handle to a DID using the Microcosm resolution service
+pub async fn resolve_handle_to_did(handle: &str) -> Result<String> {
+    let url = format!(
+        "https://slingshot.microcosm.blue/xrpc/com.bad-example.identity.resolveMiniDoc?identifier={}",
+        handle
+    );
+
+    let response = reqwest::get(&url).await?;
+
+    if !response.status().is_success() {
+        anyhow::bail!("failed to resolve handle: {}", response.status());
+    }
+
+    let doc: MiniDocResponse = response.json().await?;
+    Ok(doc.did)
 }

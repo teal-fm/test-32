@@ -18,6 +18,7 @@ pub mod atproto;
 pub mod db;
 pub mod fanart;
 pub mod models;
+pub mod og_image;
 pub mod wrapped;
 
 #[derive(Clone)]
@@ -48,11 +49,17 @@ pub struct WrappedData {
     pub longest_session_minutes: u32,   // longest continuous listening session
     #[serde(skip_serializing_if = "Option::is_none")]
     similar_users: Option<Vec<MusicBuddy>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    profile_picture: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 struct MusicBuddy {
     did: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    handle: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    profile_picture: Option<String>,
     similarity_score: f64,
     shared_artists: Vec<String>,
     shared_artist_count: u32,
@@ -98,6 +105,11 @@ struct DayActivity {
 #[derive(Debug, Deserialize)]
 struct WrappedQuery {
     did: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct OgImageQuery {
+    handle: String,
 }
 
 #[axum::debug_handler]
@@ -233,21 +245,56 @@ async fn get_wrapped(
     // Sort by date to ensure chronological order for calendar generation
     activity_graph.sort_by(|a, b| a.date.cmp(&b.date));
 
-    // Find similar users (music buddies)
+    // Find similar users (music buddies) and resolve their profiles
     let similar_users = match db::find_similar_users(&state.db, did, year, 3).await {
-        Ok(users) => Some(
-            users
-                .into_iter()
-                .map(|u| MusicBuddy {
+        Ok(users) => {
+            let mut buddies = Vec::new();
+            for u in users {
+                // Resolve handle and profile picture for each similar user
+                let (handle, profile_picture) = match atproto::resolve_did_document(&u.did).await {
+                    Ok(doc) => {
+                        let pfp = match atproto::fetch_profile_picture(&u.did).await {
+                            Ok(url) => url,
+                            Err(e) => {
+                                tracing::debug!("failed to fetch pfp for {}: {}", u.did, e);
+                                None
+                            }
+                        };
+                        (doc.handle, pfp)
+                    }
+                    Err(e) => {
+                        tracing::debug!("failed to resolve did doc for {}: {}", u.did, e);
+                        (None, None)
+                    }
+                };
+
+                buddies.push(MusicBuddy {
                     did: u.did,
+                    handle,
+                    profile_picture,
                     similarity_score: u.similarity_score,
                     shared_artist_count: u.shared_artists.len() as u32,
                     shared_artists: u.shared_artists,
-                })
-                .collect(),
-        ),
+                });
+            }
+            Some(buddies)
+        }
         Err(e) => {
             tracing::warn!("failed to find similar users: {}", e);
+            None
+        }
+    };
+
+    // Fetch profile picture from AT Protocol
+    let profile_picture = match atproto::fetch_profile_picture(did).await {
+        Ok(url) => {
+            if url.is_some() {
+                tracing::info!("fetched profile picture for {}", did);
+            }
+            url
+        }
+        Err(e) => {
+            tracing::warn!("failed to fetch profile picture for {}: {}", did, e);
             None
         }
     };
@@ -270,6 +317,7 @@ async fn get_wrapped(
         hourly_distribution: stats.hourly_distribution,
         top_hour: stats.top_hour,
         longest_session_minutes: stats.longest_session_minutes,
+        profile_picture,
     };
 
     if let Err(e) = db::cache_wrapped(&state.db, did, year, &data).await {
@@ -281,6 +329,158 @@ async fn get_wrapped(
 
 async fn health_check() -> &'static str {
     "ok"
+}
+
+#[axum::debug_handler]
+async fn get_og_image(
+    State(state): State<AppState>,
+    Path(year): Path<u32>,
+    Query(params): Query<OgImageQuery>,
+) -> Result<Response, axum::http::StatusCode> {
+    let handle = &params.handle;
+
+    // Check for cached OG image on disk first
+    let cache_dir = std::path::Path::new("./images/og");
+    let cache_filename = format!("{}_{}.png", handle.replace('.', "_"), year);
+    let cache_path = cache_dir.join(&cache_filename);
+
+    if cache_path.exists() {
+        tracing::info!("serving cached OG image for {} (year {})", handle, year);
+        let file = File::open(&cache_path)
+            .await
+            .map_err(|_| axum::http::StatusCode::INTERNAL_SERVER_ERROR)?;
+        let stream = ReaderStream::new(file);
+        let body = Body::from_stream(stream);
+
+        return Ok(Response::builder()
+            .header(header::CONTENT_TYPE, "image/png")
+            .header(header::CACHE_CONTROL, "public, max-age=86400")
+            .body(body)
+            .unwrap());
+    }
+
+    // Resolve handle to DID
+    let did = atproto::resolve_handle_to_did(handle).await.map_err(|e| {
+        tracing::error!("failed to resolve handle {}: {}", handle, e);
+        axum::http::StatusCode::NOT_FOUND
+    })?;
+
+    // Try to get cached wrapped data first
+    let wrapped_data = if let Ok(Some(cached)) = db::get_cached_wrapped(&state.db, &did, year).await
+    {
+        Some(cached)
+    } else {
+        // Try to calculate it
+        match wrapped::calculate_wrapped_stats(&state.db, &did, year).await {
+            Ok(stats) => {
+                // Get profile picture
+                let mut profile_picture: Option<String> = None;
+                let mut top_artists: Vec<TopArtist> = Vec::new();
+
+                // Get profile picture
+                if let Ok(Some(pfp)) = atproto::fetch_profile_picture(&did).await {
+                    profile_picture = Some(pfp);
+                }
+
+                // Get top artist with image for OG background
+                if let Some((name, plays, minutes, mb_id)) = stats.top_artists.first() {
+                    let image_url = if let Some(ref mbid) = mb_id {
+                        fanart::get_artist_image(
+                            &state.db,
+                            mbid,
+                            name,
+                            &state.spotify_client_id,
+                            &state.spotify_client_secret,
+                            &state.fanart_api_key,
+                        )
+                        .await
+                        .ok()
+                        .flatten()
+                    } else {
+                        None
+                    };
+
+                    top_artists.push(TopArtist {
+                        name: name.clone(),
+                        plays: *plays,
+                        minutes: *minutes,
+                        mb_id: mb_id.clone(),
+                        image_url,
+                        top_track: None,
+                        top_track_plays: None,
+                        top_track_duration_ms: None,
+                    });
+                }
+
+                Some(WrappedData {
+                    year,
+                    total_minutes: stats.total_minutes,
+                    total_plays: stats.total_plays,
+                    top_artists,
+                    top_tracks: vec![],
+                    new_artists_count: 0,
+                    activity_graph: vec![],
+                    weekday_avg_minutes: 0.0,
+                    weekend_avg_minutes: 0.0,
+                    longest_streak: 0,
+                    days_active: 0,
+                    similar_users: None,
+                    avg_track_length_ms: 0,
+                    listening_diversity: 0.0,
+                    hourly_distribution: [0; 24],
+                    top_hour: 0,
+                    longest_session_minutes: 0,
+                    profile_picture,
+                })
+            }
+            Err(_) => None,
+        }
+    };
+
+    // Extract necessary data for OG image
+    let profile_picture = wrapped_data
+        .as_ref()
+        .and_then(|d| d.profile_picture.clone());
+    let top_artist_image = wrapped_data
+        .as_ref()
+        .and_then(|d| d.top_artists.first())
+        .and_then(|a| a.image_url.clone());
+
+    tracing::info!(
+        "generating OG image for {} (year {}), profile_pic: {}, artist_bg: {}",
+        handle,
+        year,
+        profile_picture.is_some(),
+        top_artist_image.is_some()
+    );
+
+    // Generate the OG image
+    let image_bytes = og_image::generate_og_image(
+        handle,
+        year,
+        profile_picture.as_deref(),
+        top_artist_image.as_deref(),
+    )
+    .await
+    .map_err(|e| {
+        tracing::error!("failed to generate OG image: {}", e);
+        axum::http::StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    // Cache the generated image to disk
+    if let Err(e) = tokio::fs::create_dir_all(cache_dir).await {
+        tracing::warn!("failed to create og_images cache directory: {}", e);
+    } else if let Err(e) = tokio::fs::write(&cache_path, &image_bytes).await {
+        tracing::warn!("failed to cache OG image to disk: {}", e);
+    } else {
+        tracing::info!("cached OG image to {}", cache_path.display());
+    }
+
+    Ok(Response::builder()
+        .header(header::CONTENT_TYPE, "image/png")
+        .header(header::CACHE_CONTROL, "public, max-age=86400") // 24 hours
+        .body(Body::from(image_bytes))
+        .unwrap())
 }
 
 async fn serve_image(Path(filename): Path<String>) -> Result<Response, axum::http::StatusCode> {
@@ -342,6 +542,7 @@ pub async fn run() {
     let app = Router::new()
         .route("/health", get(health_check))
         .route("/api/wrapped/:year", get(get_wrapped))
+        .route("/api/wrapped/:year/og", get(get_og_image))
         .route("/images/:filename", get(serve_image))
         .layer(CorsLayer::permissive())
         .with_state(state);

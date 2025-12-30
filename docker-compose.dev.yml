@@ -1,0 +1,49 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: teal
+      POSTGRES_PASSWORD: teal
+      POSTGRES_DB: teal_wrapped
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U teal -d teal_wrapped"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    depends_on:
+      postgres:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgres://teal:teal@postgres:5432/teal_wrapped
+      SQLX_OFFLINE: "true"
+      RUST_LOG: debug
+      RUST_BACKTRACE: 1
+    ports:
+      - "3001:3001"
+    volumes:
+      - ./api:/app/api
+      - ./lexicon:/app/lexicon
+      - ./Cargo.toml:/app/Cargo.toml
+      - ./Cargo.lock:/app/Cargo.lock
+      - ./.sqlx:/app/.sqlx
+      - ./images:/app/images
+      - ./public:/app/public
+      - cargo_cache:/usr/local/cargo/registry
+      - target_cache:/app/target
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  cargo_cache:
+  target_cache:

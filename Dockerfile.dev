@@ -1,0 +1,30 @@
+FROM rust:1.91-bookworm
+
+# Install cargo-watch for hot reloading and sqlx-cli for migrations
+RUN cargo install cargo-watch && \
+    cargo install sqlx-cli --no-default-features --features postgres
+
+WORKDIR /app
+
+# Copy manifests first for better caching
+COPY Cargo.toml Cargo.lock ./
+COPY api/Cargo.toml ./api/
+COPY lexicon/Cargo.toml ./lexicon/
+
+# Create dummy source files to cache dependencies
+RUN mkdir -p api/src/bin lexicon/src && \
+    echo "fn main() {}" > api/src/main.rs && \
+    echo "fn main() {}" > api/src/bin/import_scrobbles.rs && \
+    echo "fn main() {}" > api/src/bin/inspect.rs && \
+    echo "fn main() {}" > api/src/bin/test_fetch.rs && \
+    echo "" > lexicon/src/lib.rs && \
+    cargo build --bin teal-wrapped-api && \
+    rm -rf api/src lexicon/src target
+
+# Source will be mounted via volume
+
+EXPOSE 3001
+
+# Watch for changes and rebuild/restart
+CMD ["cargo", "watch", "-x", "run --bin teal-wrapped-api", "-w", "api/src", "-w", "lexicon/src"]
+
