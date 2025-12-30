@@ -10,6 +10,7 @@ COPY lexicon/Cargo.toml ./lexicon/
 # copy source
 COPY api/src ./api/src
 COPY api/migrations ./api/migrations
+COPY static ./static
 COPY lexicon/src ./lexicon/src
 # and /.sqlx
 COPY .sqlx .sqlx
