@@ -44,7 +44,7 @@ const mbidCache = new Map<string, string | null>();
 
 async function lookupReleaseMbId(
   title: string,
-  artist: string
+  artist: string,
 ): Promise<string | null> {
   const cacheKey = `${artist}::${title}`;
   if (mbidCache.has(cacheKey)) {
@@ -54,7 +54,7 @@ async function lookupReleaseMbId(
   try {
     // Search for recording to find release
     const query = encodeURIComponent(
-      `recording:"${title}" AND artist:"${artist}"`
+      `recording:"${title}" AND artist:"${artist}"`,
     );
     const response = await fetch(
       `https://musicbrainz.org/ws/2/recording?query=${query}&fmt=json&limit=1`,
@@ -62,7 +62,7 @@ async function lookupReleaseMbId(
         headers: {
           "User-Agent": "TealWrapped/1.0 (https://teal.fm)",
         },
-      }
+      },
     );
 
     if (!response.ok) {
@@ -106,7 +106,7 @@ function AlbumArt({
       // If we have a valid MBID, use it directly
       if (releaseMbId && releaseMbId !== "undefined") {
         setSrc(
-          `https://coverartarchive.org/release/${releaseMbId}/front-500.jpg`
+          `https://coverartarchive.org/release/${releaseMbId}/front-500.jpg`,
         );
         return;
       }
@@ -117,7 +117,7 @@ function AlbumArt({
 
       if (foundMbId) {
         setSrc(
-          `https://coverartarchive.org/release/${foundMbId}/front-500.jpg`
+          `https://coverartarchive.org/release/${foundMbId}/front-500.jpg`,
         );
       } else {
         setSrc(ALBUM_PLACEHOLDER);
@@ -193,7 +193,7 @@ export const Route = createFileRoute("/wrapped/$handle")({
   head: ({ params }) => {
     const year = new Date().getFullYear();
     const ogImageUrl = `http://localhost:3001/api/wrapped/${year}/og?handle=${encodeURIComponent(
-      params.handle
+      params.handle,
     )}`;
     const pageUrl = `https://yearinmusic.teal.fm/wrapped/${params.handle}`;
 
@@ -259,7 +259,7 @@ export const Route = createFileRoute("/wrapped/$handle")({
 
 function getActivityColor(
   date: Date,
-  activityData: Array<{ date: string; plays: number; minutes: number }>
+  activityData: Array<{ date: string; plays: number; minutes: number }>,
 ): string {
   const dateStr = date.toISOString().split("T")[0];
   const activity = activityData.find((a) => a.date === dateStr);
@@ -279,7 +279,7 @@ function generateCalendarWeeks(
   year: number,
   activityData: Array<{ date: string; plays: number; minutes: number }>,
   startMonth?: number,
-  endMonth?: number
+  endMonth?: number,
 ): Date[][] {
   const weeks: Date[][] = [];
   const startDate = new Date(`${year}-01-01`);
@@ -288,7 +288,7 @@ function generateCalendarWeeks(
   const firstActivityDate =
     activityData.length > 0
       ? new Date(
-          Math.min(...activityData.map((a) => new Date(a.date).getTime()))
+          Math.min(...activityData.map((a) => new Date(a.date).getTime())),
         )
       : startDate;
 
@@ -329,7 +329,7 @@ function generateCalendarWeeks(
 
 function shouldSplitActivityGraph(
   year: number,
-  activityData: Array<{ date: string; plays: number; minutes: number }>
+  activityData: Array<{ date: string; plays: number; minutes: number }>,
 ): boolean {
   if (activityData.length === 0) return false;
 
@@ -337,12 +337,12 @@ function shouldSplitActivityGraph(
   const yearEnd = new Date(`${year}-12-31`);
 
   const firstActivityDate = new Date(
-    Math.min(...activityData.map((a) => new Date(a.date).getTime()))
+    Math.min(...activityData.map((a) => new Date(a.date).getTime())),
   );
 
   // Calculate days from first activity to end of year
   const totalDays = Math.ceil(
-    (yearEnd.getTime() - firstActivityDate.getTime()) / (1000 * 60 * 60 * 24)
+    (yearEnd.getTime() - firstActivityDate.getTime()) / (1000 * 60 * 60 * 24),
   );
 
   // Split if spans more than 275 days (about 3/4 of year) or starts before March
@@ -352,9 +352,11 @@ function shouldSplitActivityGraph(
 function AnimatedNumber({
   value,
   duration = 2,
+  className,
 }: {
   value: number;
   duration?: number;
+  className?: string;
 }) {
   const ref = useRef(null);
   const margin = useResponsiveMargin();
@@ -366,31 +368,23 @@ function AnimatedNumber({
   return (
     <motion.span
       ref={ref}
-      initial={{ opacity: 0 }}
-      animate={isInView ? { opacity: 1 } : { opacity: 0 }}
-      transition={{ duration: 0.5 }}
+      className={className}
+      style={{
+        display: "inline-block",
+        willChange: isInView ? "auto" : "transform, opacity",
+      }}
+      initial={{ opacity: 0, y: 20, scale: 0.8 }}
+      animate={{
+        opacity: isInView ? 1 : 0,
+        y: isInView ? 0 : 20,
+        scale: isInView ? 1 : 0.8,
+      }}
+      transition={{
+        duration,
+        ease: [0.33, 1, 0.68, 1],
+      }}
     >
-      {isInView && (
-        <motion.span
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{
-            duration,
-            ease: [0.33, 1, 0.68, 1],
-          }}
-        >
-          <motion.span
-            initial={{ scale: 0.8 }}
-            animate={{ scale: 1 }}
-            transition={{
-              duration: duration * 0.8,
-              ease: [0.34, 1.56, 0.64, 1], // spring-like ease
-            }}
-          >
-            {value.toLocaleString()}
-          </motion.span>
-        </motion.span>
-      )}
+      {value.toLocaleString()}
     </motion.span>
   );
 }
@@ -522,7 +516,7 @@ function WrappedPage() {
       try {
         // Resolve handle to DID via minidoc
         const miniDocResponse = await fetch(
-          `https://slingshot.microcosm.blue/xrpc/com.bad-example.identity.resolveMiniDoc?identifier=${handle}`
+          `https://slingshot.microcosm.blue/xrpc/com.bad-example.identity.resolveMiniDoc?identifier=${handle}`,
         );
         if (!miniDocResponse.ok) {
           throw new Error("Failed to resolve handle");
@@ -532,7 +526,7 @@ function WrappedPage() {
 
         const year = new Date().getFullYear();
         const response = await fetch(
-          `http://localhost:3001/api/wrapped/${year}?did=${did}`
+          `http://localhost:3001/api/wrapped/${year}?did=${did}`,
         );
         if (!response.ok) {
           throw new Error("Failed to fetch wrapped data");
@@ -551,7 +545,7 @@ function WrappedPage() {
 
   const generateShareImage = async (
     ref: React.RefObject<HTMLDivElement>,
-    filename: string
+    filename: string,
   ) => {
     if (!ref.current) return;
 
@@ -561,6 +555,8 @@ function WrappedPage() {
         backgroundColor: "#0a0a0a",
         scale: 2,
         logging: false,
+        useCORS: true,
+        allowTaint: false,
       });
 
       const blob = await new Promise<Blob>((resolve) => {
@@ -661,12 +657,11 @@ function WrappedPage() {
           </FadeUpSection>
           <FadeUpSection delay={0.2}>
             <div className="mb-8">
-              <span className="text-[4rem] sm:text-[6rem] md:text-[10rem] lg:text-[14rem] font-bold leading-none bg-gradient-to-r from-[#00ffaa] to-[#00ff66] bg-clip-text text-transparent">
-                <AnimatedNumber
-                  value={Math.round(data.total_minutes)}
-                  duration={2.5}
-                />
-              </span>
+              <AnimatedNumber
+                value={Math.round(data.total_minutes)}
+                duration={2.5}
+                className="text-[4rem] sm:text-[6rem] md:text-[10rem] lg:text-[14rem] font-bold leading-none bg-gradient-to-r from-[#00ffaa] to-[#00ff66] bg-clip-text text-transparent"
+              />
             </div>
           </FadeUpSection>
           <FadeUpSection delay={0.4}>
@@ -776,12 +771,11 @@ function WrappedPage() {
                   Discovery
                 </p>
                 <div className="mb-8">
-                  <span className="text-[6rem] sm:text-[8rem] md:text-[12rem] lg:text-[14rem] font-bold leading-none bg-gradient-to-br from-[#ff6b6b] to-[#ff9500] bg-clip-text text-transparent">
-                    <AnimatedNumber
-                      value={data.new_artists_count}
-                      duration={2}
-                    />
-                  </span>
+                  <AnimatedNumber
+                    value={data.new_artists_count}
+                    duration={2}
+                    className="text-[6rem] sm:text-[8rem] md:text-[12rem] lg:text-[14rem] font-bold leading-none bg-gradient-to-br from-[#ff6b6b] to-[#ff9500] bg-clip-text text-transparent"
+                  />
                 </div>
                 <div>
                   <p className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl text-white mb-3">
@@ -840,13 +834,10 @@ function WrappedPage() {
             <div className="space-y-6 lg:space-y-8">
               <FadeUpSection delay={0.2}>
                 <div className="border-l-4 border-[#00d9ff] pl-6 lg:pl-8">
-                  <p className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold bg-gradient-to-r from-[#00d9ff] to-[#0066ff] bg-clip-text text-transparent">
-                    <AnimatedNumber
-                      value={Math.round(
-                        (data.top_artists[0]?.minutes || 0) / 60
-                      )}
-                    />
-                  </p>
+                  <AnimatedNumber
+                    value={Math.round((data.top_artists[0]?.minutes || 0) / 60)}
+                    className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold bg-gradient-to-r from-[#00d9ff] to-[#0066ff] bg-clip-text text-transparent"
+                  />
                   <p className="text-lg sm:text-xl text-white/60 mt-2">
                     hours played
                   </p>
@@ -854,9 +845,10 @@ function WrappedPage() {
               </FadeUpSection>
               <FadeUpSection delay={0.3}>
                 <div className="border-l-4 border-[#ff0099] pl-6 lg:pl-8">
-                  <p className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold bg-gradient-to-r from-[#ff0099] to-[#9900ff] bg-clip-text text-transparent">
-                    <AnimatedNumber value={data.top_artists[0]?.plays || 0} />
-                  </p>
+                  <AnimatedNumber
+                    value={data.top_artists[0]?.plays || 0}
+                    className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold bg-gradient-to-r from-[#ff0099] to-[#9900ff] bg-clip-text text-transparent"
+                  />
                   <p className="text-lg sm:text-xl text-white/60 mt-2">plays</p>
                 </div>
               </FadeUpSection>
@@ -885,7 +877,7 @@ function WrappedPage() {
                               (data.top_artists[0].top_track_duration_ms *
                                 data.top_artists[0].top_track_plays) /
                                 1000 /
-                                60
+                                60,
                             )}
                             m{" "}
                             {String(
@@ -893,8 +885,8 @@ function WrappedPage() {
                                 ((data.top_artists[0].top_track_duration_ms *
                                   data.top_artists[0].top_track_plays) /
                                   1000) %
-                                  60
-                              )
+                                  60,
+                              ),
                             ).padStart(2, "0")}
                             s in total
                           </span>
@@ -954,11 +946,10 @@ function WrappedPage() {
                     <div className="space-y-4">
                       <div className="flex justify-between items-baseline border-b border-white/10 pb-3">
                         <span className="text-sm text-white/40">hours</span>
-                        <span className="text-2xl font-bold bg-gradient-to-r from-[#00ffaa] to-[#00ff66] bg-clip-text text-transparent">
-                          <AnimatedNumber
-                            value={Math.round(data.top_artists[1].minutes / 60)}
-                          />
-                        </span>
+                        <AnimatedNumber
+                          value={Math.round(data.top_artists[1].minutes / 60)}
+                          className="text-2xl font-bold bg-gradient-to-r from-[#00ffaa] to-[#00ff66] bg-clip-text text-transparent"
+                        />
                       </div>
                       <div className="flex justify-between items-baseline border-b border-white/10 pb-3">
                         <span className="text-sm text-white/40">plays</span>
@@ -1003,11 +994,10 @@ function WrappedPage() {
                     <div className="space-y-4">
                       <div className="flex justify-between items-baseline border-b border-white/10 pb-3">
                         <span className="text-sm text-white/40">hours</span>
-                        <span className="text-2xl font-bold bg-gradient-to-r from-[#0066ff] to-[#9900ff] bg-clip-text text-transparent">
-                          <AnimatedNumber
-                            value={Math.round(data.top_artists[2].minutes / 60)}
-                          />
-                        </span>
+                        <AnimatedNumber
+                          value={Math.round(data.top_artists[2].minutes / 60)}
+                          className="text-2xl font-bold bg-gradient-to-r from-[#0066ff] to-[#9900ff] bg-clip-text text-transparent"
+                        />
                       </div>
                       <div className="flex justify-between items-baseline border-b border-white/10 pb-3">
                         <span className="text-sm text-white/40">plays</span>
@@ -1087,12 +1077,11 @@ function WrappedPage() {
             <div className="lg:col-span-2">
               <FadeUpSection delay={0.6}>
                 <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-6 lg:p-8 border border-white/10">
-                  <p className="text-[4rem] sm:text-[5rem] md:text-[6rem] lg:text-[7rem] xl:text-[8rem] font-bold leading-none bg-gradient-to-br from-[#ff0099] to-[#ff6b6b] bg-clip-text text-transparent mb-4">
-                    <AnimatedNumber
-                      value={data.top_tracks[0]?.plays || 0}
-                      duration={2}
-                    />
-                  </p>
+                  <AnimatedNumber
+                    value={data.top_tracks[0]?.plays || 0}
+                    duration={2}
+                    className="text-[4rem] sm:text-[5rem] md:text-[6rem] lg:text-[7rem] xl:text-[8rem] font-bold leading-none bg-gradient-to-br from-[#ff0099] to-[#ff6b6b] bg-clip-text text-transparent mb-4"
+                  />
                   <p className="text-lg sm:text-xl text-white/70 mb-6">
                     total plays
                   </p>
@@ -1150,9 +1139,10 @@ function WrappedPage() {
                     </p>
                     <div className="flex justify-between items-baseline border-t border-white/10 pt-4">
                       <span className="text-sm text-white/40">plays</span>
-                      <span className="text-3xl font-bold bg-gradient-to-r from-[#00d9ff] to-[#00ffaa] bg-clip-text text-transparent">
-                        <AnimatedNumber value={data.top_tracks[1].plays} />
-                      </span>
+                      <AnimatedNumber
+                        value={data.top_tracks[1].plays}
+                        className="text-3xl font-bold bg-gradient-to-r from-[#00d9ff] to-[#00ffaa] bg-clip-text text-transparent"
+                      />
                     </div>
                   </div>
                 </FadeUpSection>
@@ -1183,9 +1173,10 @@ function WrappedPage() {
                     </p>
                     <div className="flex justify-between items-baseline border-t border-white/10 pt-4">
                       <span className="text-sm text-white/40">plays</span>
-                      <span className="text-3xl font-bold bg-gradient-to-r from-[#9900ff] to-[#ff9500] bg-clip-text text-transparent">
-                        <AnimatedNumber value={data.top_tracks[2].plays} />
-                      </span>
+                      <AnimatedNumber
+                        value={data.top_tracks[2].plays}
+                        className="text-3xl font-bold bg-gradient-to-r from-[#9900ff] to-[#ff9500] bg-clip-text text-transparent"
+                      />
                     </div>
                   </div>
                 </FadeUpSection>
@@ -1243,9 +1234,9 @@ function WrappedPage() {
                     </p>
                   </div>
                   <div className="text-right">
-                    <p className="text-2xl sm:text-3xl md:text-4xl font-bold">
+                    <div className="text-2xl sm:text-3xl md:text-4xl font-bold">
                       <AnimatedNumber value={item.plays} duration={1.5} />
-                    </p>
+                    </div>
                     <p className="text-sm text-white/40 mt-1">plays</p>
                   </div>
                 </div>
@@ -1284,12 +1275,11 @@ function WrappedPage() {
                   Weekdays
                 </p>
                 <div className="mb-6 lg:mb-8">
-                  <p className="text-[3rem] sm:text-[4rem] md:text-[5rem] lg:text-[6rem] font-bold leading-none bg-gradient-to-r from-[#0066ff] to-[#00d9ff] bg-clip-text text-transparent mb-2">
-                    <AnimatedNumber
-                      value={Number((data.weekday_avg_minutes / 60).toFixed(1))}
-                      duration={2}
-                    />
-                  </p>
+                  <AnimatedNumber
+                    value={Number((data.weekday_avg_minutes / 60).toFixed(1))}
+                    duration={2}
+                    className="text-[3rem] sm:text-[4rem] md:text-[5rem] lg:text-[6rem] font-bold leading-none bg-gradient-to-r from-[#0066ff] to-[#00d9ff] bg-clip-text text-transparent mb-2"
+                  />
                   <p className="text-lg sm:text-xl lg:text-2xl text-white/60">
                     avg. hours per day
                   </p>
@@ -1304,12 +1294,11 @@ function WrappedPage() {
                   Weekends
                 </p>
                 <div className="mb-6 lg:mb-8">
-                  <p className="text-[3rem] sm:text-[4rem] md:text-[5rem] lg:text-[6rem] font-bold leading-none bg-gradient-to-r from-[#00ffaa] to-[#00ff66] bg-clip-text text-transparent mb-2">
-                    <AnimatedNumber
-                      value={Number((data.weekend_avg_minutes / 60).toFixed(1))}
-                      duration={2}
-                    />
-                  </p>
+                  <AnimatedNumber
+                    value={Number((data.weekend_avg_minutes / 60).toFixed(1))}
+                    duration={2}
+                    className="text-[3rem] sm:text-[4rem] md:text-[5rem] lg:text-[6rem] font-bold leading-none bg-gradient-to-r from-[#00ffaa] to-[#00ff66] bg-clip-text text-transparent mb-2"
+                  />
                   <p className="text-lg sm:text-xl lg:text-2xl text-white/60">
                     avg. hours per day
                   </p>
@@ -1327,7 +1316,7 @@ function WrappedPage() {
                     {Math.round(
                       ((data.weekend_avg_minutes - data.weekday_avg_minutes) /
                         data.weekday_avg_minutes) *
-                        100
+                        100,
                     )}
                     % more listening time on average.
                   </>
@@ -1337,8 +1326,8 @@ function WrappedPage() {
                     {Math.round(
                       Math.abs(
                         (data.weekend_avg_minutes - data.weekday_avg_minutes) /
-                          data.weekday_avg_minutes
-                      ) * 100
+                          data.weekday_avg_minutes,
+                      ) * 100,
                     )}
                     % more listening time on average.
                   </>
@@ -1382,16 +1371,23 @@ function WrappedPage() {
                   Average Track Length
                 </p>
                 <div className="mb-6 lg:mb-8">
-                  <p className="text-[3rem] sm:text-[4rem] md:text-[5rem] lg:text-[6rem] font-bold leading-none bg-gradient-to-r from-[#ff9500] to-[#ff6b6b] bg-clip-text text-transparent mb-2">
-                    <AnimatedNumber
-                      value={Math.floor(data.avg_track_length_ms / 60000)}
-                      duration={2}
-                    />
-                    :
-                    {String(
-                      Math.floor((data.avg_track_length_ms % 60000) / 1000)
-                    ).padStart(2, "0")}
-                  </p>
+                  <div className="text-[3rem] sm:text-[4rem] md:text-[5rem] lg:text-[6rem] font-bold leading-none mb-2">
+                    <span
+                      className="bg-gradient-to-r from-[#ff9500] to-[#ff6b6b] bg-clip-text text-transparent"
+                      style={{ display: "inline-block" }}
+                    >
+                      <AnimatedNumber
+                        value={Math.floor(data.avg_track_length_ms / 60000)}
+                        duration={2}
+                      />
+                    </span>
+                    <span className="bg-gradient-to-r from-[#ff9500] to-[#ff6b6b] bg-clip-text text-transparent">
+                      :
+                      {String(
+                        Math.floor((data.avg_track_length_ms % 60000) / 1000),
+                      ).padStart(2, "0")}
+                    </span>
+                  </div>
                   <p className="text-lg sm:text-xl lg:text-2xl text-white/60">
                     minutes per track
                   </p>
@@ -1400,8 +1396,8 @@ function WrappedPage() {
                   {data.avg_track_length_ms > 300000
                     ? "Long time 'Abolish The 2 Minute Song' advocate." // i rofl'd when i wrote this - mmatt.net
                     : data.avg_track_length_ms > 210000
-                    ? "Right in the sweet spot - classic track lengths."
-                    : "Short and sweet - you're in and out of the tunes quickly."}
+                      ? "Right in the sweet spot - classic track lengths."
+                      : "Short and sweet - you're in and out of the tunes quickly."}
                 </p>
               </div>
             </FadeUpSection>
@@ -1413,13 +1409,20 @@ function WrappedPage() {
                   Listening Diversity
                 </p>
                 <div className="mb-6 lg:mb-8">
-                  <p className="text-[3rem] sm:text-[4rem] md:text-[5rem] lg:text-[6rem] font-bold leading-none bg-gradient-to-r from-[#9900ff] to-[#ff0099] bg-clip-text text-transparent mb-2">
-                    <AnimatedNumber
-                      value={Math.round(data.listening_diversity * 100)}
-                      duration={2}
-                    />
-                    %
-                  </p>
+                  <div className="text-[3rem] sm:text-[4rem] md:text-[5rem] lg:text-[6rem] font-bold leading-none mb-2">
+                    <span
+                      className="bg-gradient-to-r from-[#9900ff] to-[#ff0099] bg-clip-text text-transparent"
+                      style={{ display: "inline-block" }}
+                    >
+                      <AnimatedNumber
+                        value={Math.round(data.listening_diversity * 100)}
+                        duration={2}
+                      />
+                    </span>
+                    <span className="bg-gradient-to-r from-[#9900ff] to-[#ff0099] bg-clip-text text-transparent">
+                      %
+                    </span>
+                  </div>
                   <p className="text-lg sm:text-xl lg:text-2xl text-white/60">
                     unique tracks
                   </p>
@@ -1428,8 +1431,8 @@ function WrappedPage() {
                   {data.listening_diversity > 0.7
                     ? "Did some crate digging? Did you find something good?"
                     : data.listening_diversity > 0.4
-                    ? "A healthy mix of favorites and fresh discoveries."
-                    : "When you find something you love, you play it on loop - sometimes that's all you need."}
+                      ? "A healthy mix of favorites and fresh discoveries."
+                      : "When you find something you love, you play it on loop - sometimes that's all you need."}
                 </p>
               </div>
             </FadeUpSection>
@@ -1459,17 +1462,31 @@ function WrappedPage() {
           </FadeUpSection>
           <FadeUpSection delay={0.2}>
             <div className="mb-8">
-              <span className="text-[5rem] sm:text-[7rem] md:text-[10rem] lg:text-[12rem] font-bold leading-none bg-gradient-to-br from-[#00d9ff] to-[#0066ff] bg-clip-text text-transparent">
-                <AnimatedNumber
-                  value={Math.floor(data.longest_session_minutes / 60)}
-                  duration={2.5}
-                />
-                h{" "}
-                <AnimatedNumber
-                  value={data.longest_session_minutes % 60}
-                  duration={2}
-                />
-                m
+              <span className="text-[5rem] sm:text-[7rem] md:text-[10rem] lg:text-[12rem] font-bold leading-none">
+                <span
+                  className="bg-gradient-to-br from-[#00d9ff] to-[#0066ff] bg-clip-text text-transparent"
+                  style={{ display: "inline-block" }}
+                >
+                  <AnimatedNumber
+                    value={Math.floor(data.longest_session_minutes / 60)}
+                    duration={2.5}
+                  />
+                </span>
+                <span className="bg-gradient-to-br from-[#00d9ff] to-[#0066ff] bg-clip-text text-transparent">
+                  h{" "}
+                </span>
+                <span
+                  className="bg-gradient-to-br from-[#00d9ff] to-[#0066ff] bg-clip-text text-transparent"
+                  style={{ display: "inline-block" }}
+                >
+                  <AnimatedNumber
+                    value={data.longest_session_minutes % 60}
+                    duration={2}
+                  />
+                </span>
+                <span className="bg-gradient-to-br from-[#00d9ff] to-[#0066ff] bg-clip-text text-transparent">
+                  m
+                </span>
               </span>
             </div>
           </FadeUpSection>
@@ -1489,10 +1506,10 @@ function WrappedPage() {
               {data.longest_session_minutes >= 300
                 ? "Fully immersed in the tunes at all hours of the day."
                 : data.longest_session_minutes >= 120
-                ? "Was your playlist just too good to stop?"
-                : data.longest_session_minutes >= 60
-                ? "How was the album? Was it a masterpiece?"
-                : "Just a quick listen to get you through the day."}
+                  ? "Was your playlist just too good to stop?"
+                  : data.longest_session_minutes >= 60
+                    ? "How was the album? Was it a masterpiece?"
+                    : "Just a quick listen to get you through the day."}
             </p>
           </FadeUpSection>
         </div>
@@ -1565,17 +1582,17 @@ function WrappedPage() {
                             {buddy.handle
                               ? `@${buddy.handle}`
                               : buddy.did.startsWith("did:")
-                              ? `${buddy.did.slice(0, 18)}...`
-                              : buddy.did}
+                                ? `${buddy.did.slice(0, 18)}...`
+                                : buddy.did}
                           </p>
                           <p className="text-sm text-white/40">
                             {idx === 0
                               ? "Music twin"
                               : idx === 1
-                              ? "Music buddy"
-                              : idx === 2
-                              ? "Music neighbor"
-                              : "Music friend"}
+                                ? "Music buddy"
+                                : idx === 2
+                                  ? "Music neighbor"
+                                  : "Music friend"}
                           </p>
                         </div>
                       </div>
@@ -1585,12 +1602,11 @@ function WrappedPage() {
                         <span className="text-sm text-white/40">
                           Shared artists
                         </span>
-                        <span className="text-2xl font-bold bg-gradient-to-r from-[#00ffaa] to-[#00d9ff] bg-clip-text text-transparent">
-                          <AnimatedNumber
-                            value={buddy.shared_artist_count}
-                            duration={1.5}
-                          />
-                        </span>
+                        <AnimatedNumber
+                          value={buddy.shared_artist_count}
+                          duration={1.5}
+                          className="text-2xl font-bold bg-gradient-to-r from-[#00ffaa] to-[#00d9ff] bg-clip-text text-transparent"
+                        />
                       </div>
                       <div className="w-full bg-white/10 rounded-full h-2">
                         <motion.div
@@ -1599,7 +1615,7 @@ function WrappedPage() {
                           whileInView={{
                             width: `${Math.min(
                               (buddy.shared_artist_count / 20) * 100,
-                              100
+                              100,
                             )}%`,
                           }}
                           viewport={{ once: true }}
@@ -1731,8 +1747,8 @@ function WrappedPage() {
                           M ${x1} ${y1}
                           L ${x2} ${y2}
                           Q ${ctrlX} ${ctrlY} ${
-                          centerX + radius * Math.cos(nextAngle)
-                        } ${centerY + radius * Math.sin(nextAngle)}
+                            centerX + radius * Math.cos(nextAngle)
+                          } ${centerY + radius * Math.sin(nextAngle)}
                           L ${x3} ${y3}
                           A ${minRadius} ${minRadius} 0 0 0 ${x1} ${y1}
                         `;
@@ -1837,14 +1853,14 @@ function WrappedPage() {
                               24) %
                             24;
                           return { hour: localHour, plays };
-                        }
+                        },
                       );
 
                       // Sort by local hour
                       localHourlyPlays.sort((a, b) => a.hour - b.hour);
 
                       const maxPlays = Math.max(
-                        ...localHourlyPlays.map((h) => h.plays)
+                        ...localHourlyPlays.map((h) => h.plays),
                       );
 
                       return localHourlyPlays.map((hourData, idx) => {
@@ -1876,8 +1892,8 @@ function WrappedPage() {
                           M ${x1} ${y1}
                           L ${x2} ${y2}
                           Q ${ctrlX} ${ctrlY} ${
-                          centerX + radius * Math.cos(nextAngle)
-                        } ${centerY + radius * Math.sin(nextAngle)}
+                            centerX + radius * Math.cos(nextAngle)
+                          } ${centerY + radius * Math.sin(nextAngle)}
                           L ${x3} ${y3}
                           A ${minRadius} ${minRadius} 0 0 0 ${x1} ${y1}
                         `;
@@ -1891,10 +1907,10 @@ function WrappedPage() {
                           hourData.hour === 0
                             ? "12am"
                             : hourData.hour < 12
-                            ? `${hourData.hour}`
-                            : hourData.hour === 12
-                            ? "12pm"
-                            : `${hourData.hour - 12}`;
+                              ? `${hourData.hour}`
+                              : hourData.hour === 12
+                                ? "12pm"
+                                : `${hourData.hour - 12}`;
 
                         return (
                           <g key={idx}>
@@ -1952,10 +1968,10 @@ function WrappedPage() {
                           peakLocalHour === 0
                             ? "midnight"
                             : peakLocalHour < 12
-                            ? `${peakLocalHour}am`
-                            : peakLocalHour === 12
-                            ? "noon"
-                            : `${peakLocalHour - 12}pm`;
+                              ? `${peakLocalHour}am`
+                              : peakLocalHour === 12
+                                ? "noon"
+                                : `${peakLocalHour - 12}pm`;
 
                         if (peakLocalHour >= 0 && peakLocalHour < 6) {
                           return `Peak at ${peakDisplay} - late night sessions`;
@@ -1997,12 +2013,11 @@ function WrappedPage() {
                   Consistency
                 </p>
                 <div className="mb-8">
-                  <span className="text-[6rem] sm:text-[8rem] md:text-[10rem] lg:text-[12rem] xl:text-[14rem] font-bold leading-none bg-gradient-to-r from-[#00ff66] to-[#00ffaa] bg-clip-text text-transparent">
-                    <AnimatedNumber
-                      value={data.longest_streak}
-                      duration={2.5}
-                    />
-                  </span>
+                  <AnimatedNumber
+                    value={data.longest_streak}
+                    duration={2.5}
+                    className="text-[6rem] sm:text-[8rem] md:text-[10rem] lg:text-[12rem] xl:text-[14rem] font-bold leading-none bg-gradient-to-r from-[#00ff66] to-[#00ffaa] bg-clip-text text-transparent"
+                  />
                 </div>
                 <StaggeredText
                   text="day listening streak"
@@ -2018,8 +2033,8 @@ function WrappedPage() {
                   {data.longest_streak >= 60
                     ? `Some people meditate. You just hit play.`
                     : data.longest_streak >= 30
-                    ? `Music isn't background noise for you—it's the soundtrack.`
-                    : `Consistency pays off. Keep it going.`}
+                      ? `Music isn't background noise for you—it's the soundtrack.`
+                      : `Consistency pays off. Keep it going.`}
                 </p>
               </div>
             </FadeUpSection>
@@ -2037,7 +2052,7 @@ function WrappedPage() {
                       <div className="w-8" />
                       {generateCalendarWeeks(
                         data.year,
-                        data.activity_graph
+                        data.activity_graph,
                       ).map((week, weekIdx) => {
                         const firstDate = week[0];
                         const isFirstWeekOfMonth = firstDate.getDate() <= 7;
@@ -2073,15 +2088,16 @@ function WrappedPage() {
                           <div className="w-8 text-xs text-white/30">{day}</div>
                           {generateCalendarWeeks(
                             data.year,
-                            data.activity_graph
+                            data.activity_graph,
                           ).map((week, weekIdx) => {
                             const date = week[dayIdx];
                             const bgColor = getActivityColor(
                               date,
-                              data.activity_graph
+                              data.activity_graph,
                             );
                             const activity = data.activity_graph.find(
-                              (a) => a.date === date.toISOString().split("T")[0]
+                              (a) =>
+                                a.date === date.toISOString().split("T")[0],
                             );
                             return (
                               <motion.div
@@ -2100,7 +2116,7 @@ function WrappedPage() {
                             );
                           })}
                         </div>
-                      )
+                      ),
                     )}
                   </div>
                 </div>
@@ -2112,7 +2128,7 @@ function WrappedPage() {
                       <div className="h-6" />
                       {generateCalendarWeeks(
                         data.year,
-                        data.activity_graph
+                        data.activity_graph,
                       ).map((week, weekIdx) => {
                         const firstDate = week[0];
                         const isFirstWeekOfMonth = firstDate.getDate() <= 7;
@@ -2150,15 +2166,16 @@ function WrappedPage() {
                           </div>
                           {generateCalendarWeeks(
                             data.year,
-                            data.activity_graph
+                            data.activity_graph,
                           ).map((week, weekIdx) => {
                             const date = week[dayIdx];
                             const bgColor = getActivityColor(
                               date,
-                              data.activity_graph
+                              data.activity_graph,
                             );
                             const activity = data.activity_graph.find(
-                              (a) => a.date === date.toISOString().split("T")[0]
+                              (a) =>
+                                a.date === date.toISOString().split("T")[0],
                             );
                             return (
                               <motion.div
@@ -2177,7 +2194,7 @@ function WrappedPage() {
                             );
                           })}
                         </div>
-                      )
+                      ),
                     )}
                   </div>
                 </div>
@@ -2199,20 +2216,21 @@ function WrappedPage() {
             <FadeUpSection delay={0.6}>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 sm:gap-8 mt-12 max-w-4xl mx-auto">
                 <div className="text-center">
-                  <p className="text-3xl sm:text-4xl md:text-5xl font-bold text-white/80 mb-2">
+                  <div className="text-3xl sm:text-4xl md:text-5xl font-bold text-white/80 mb-2">
                     <AnimatedNumber value={data.days_active} duration={1.5} />
-                  </p>
+                  </div>
                   <p className="text-sm text-white/40 uppercase tracking-wider">
                     days active
                   </p>
                 </div>
                 <div className="text-center">
-                  <p className="text-3xl sm:text-4xl md:text-5xl font-bold bg-gradient-to-r from-[#00ff66] to-[#00ffaa] bg-clip-text text-transparent mb-2">
+                  <div className="mb-2">
                     <AnimatedNumber
                       value={data.longest_streak}
                       duration={1.5}
+                      className="text-3xl sm:text-4xl md:text-5xl font-bold bg-gradient-to-r from-[#00ff66] to-[#00ffaa] bg-clip-text text-transparent"
                     />
-                  </p>
+                  </div>
                   <p className="text-sm text-white/40 uppercase tracking-wider">
                     longest streak
                   </p>
@@ -2243,18 +2261,25 @@ function WrappedPage() {
                 The Big Three
               </p>
               <div className="flex justify-center items-baseline gap-6 mb-8">
-                <span className="text-[6rem] sm:text-[8rem] md:text-[10rem] lg:text-[12rem] xl:text-[14rem] font-bold leading-none bg-gradient-to-br from-[#9900ff] to-[#ff0099] bg-clip-text text-transparent">
-                  <AnimatedNumber
-                    value={Math.round(
-                      (data.top_artists
-                        .slice(0, 3)
-                        .reduce((acc, a) => acc + a.minutes, 0) /
-                        data.total_minutes) *
-                        100
-                    )}
-                    duration={2}
-                  />
-                  %
+                <span className="text-[6rem] sm:text-[8rem] md:text-[10rem] lg:text-[12rem] xl:text-[14rem] font-bold leading-none">
+                  <span
+                    className="bg-gradient-to-br from-[#9900ff] to-[#ff0099] bg-clip-text text-transparent"
+                    style={{ display: "inline-block" }}
+                  >
+                    <AnimatedNumber
+                      value={Math.round(
+                        (data.top_artists
+                          .slice(0, 3)
+                          .reduce((acc, a) => acc + a.minutes, 0) /
+                          data.total_minutes) *
+                          100,
+                      )}
+                      duration={2}
+                    />
+                  </span>
+                  <span className="bg-gradient-to-br from-[#9900ff] to-[#ff0099] bg-clip-text text-transparent">
+                    %
+                  </span>
                 </span>
               </div>
               <p className="text-xl sm:text-2xl md:text-3xl text-white/70 max-w-2xl mx-auto leading-relaxed mb-8 lg:mb-12 px-4">
@@ -2301,12 +2326,11 @@ function WrappedPage() {
                     <div className="space-y-2">
                       <div className="flex justify-between items-baseline">
                         <span className="text-sm text-white/40">hours</span>
-                        <span className="text-lg sm:text-xl font-bold bg-gradient-to-r from-[#9900ff] to-[#ff0099] bg-clip-text text-transparent">
-                          <AnimatedNumber
-                            value={Math.round(artist.minutes / 60)}
-                            duration={1.5}
-                          />
-                        </span>
+                        <AnimatedNumber
+                          value={Math.round(artist.minutes / 60)}
+                          duration={1.5}
+                          className="text-lg sm:text-xl font-bold bg-gradient-to-r from-[#9900ff] to-[#ff0099] bg-clip-text text-transparent"
+                        />
                       </div>
                       <div className="flex justify-between items-baseline">
                         <span className="text-sm text-white/40">plays</span>
@@ -2327,7 +2351,7 @@ function WrappedPage() {
                   .slice(0, 3)
                   .reduce((acc, a) => acc + a.minutes, 0) /
                   data.total_minutes) *
-                  100
+                  100,
               ) >= 25
                 ? "You know what you like, and you really commit to it."
                 : "Focused, but still leaving room for discovery."}
@@ -2421,7 +2445,7 @@ function WrappedPage() {
                   generateShareImage(
                     // @ts-ignore
                     topStatsCardRef,
-                    `wrapped-${data.year}-stats.png`
+                    `wrapped-${data.year}-stats.png`,
                   )
                 }
                 disabled={generatingImage}
@@ -2434,7 +2458,7 @@ function WrappedPage() {
                   generateShareImage(
                     // @ts-ignore
                     topArtistCardRef,
-                    `wrapped-${data.year}-artist.png`
+                    `wrapped-${data.year}-artist.png`,
                   )
                 }
                 disabled={generatingImage}
@@ -2447,7 +2471,7 @@ function WrappedPage() {
                   generateShareImage(
                     // @ts-ignore
                     activityCardRef,
-                    `wrapped-${data.year}-activity.png`
+                    `wrapped-${data.year}-activity.png`,
                   )
                 }
                 disabled={generatingImage}
@@ -2460,7 +2484,7 @@ function WrappedPage() {
                   generateShareImage(
                     // @ts-ignore
                     overallCardRef,
-                    `wrapped-${data.year}-overall.png`
+                    `wrapped-${data.year}-overall.png`,
                   )
                 }
                 disabled={generatingImage}
@@ -2488,7 +2512,7 @@ function WrappedPage() {
                 </h3>
                 <div
                   ref={topStatsCardRef}
-                  className="w-[1080px] h-[1080px] bg-[#0a0a0a] p-16 flex flex-col justify-between border  border-white/20 rounded-4xl"
+                  className="w-[1080px] h-[1080px] bg-[#0a0a0a] p-16 flex flex-col justify-between"
                   style={{
                     transform: "scale(0.5)",
                     transformOrigin: "top left",
@@ -2536,6 +2560,18 @@ function WrappedPage() {
                           {data.longest_streak} days
                         </span>
                       </div>
+                      <div className="flex justify-between items-baseline border-b border-white/10 pb-6">
+                        <span className="text-3xl text-white/60">
+                          Longest session
+                        </span>
+                        <span
+                          className="text-5xl font-bold"
+                          style={{ color: "#0099ff" }}
+                        >
+                          {Math.round(data.longest_session_minutes / 60)}h
+                          {Math.round(data.longest_session_minutes % 60)}m
+                        </span>
+                      </div>
                     </div>
                   </div>
 
@@ -2564,7 +2600,7 @@ function WrappedPage() {
                 </h3>
                 <div
                   ref={topArtistCardRef}
-                  className="w-[1080px] h-[1080px] bg-[#0a0a0a] p-16 flex flex-col border  border-white/20 rounded-4xl"
+                  className="w-[1080px] h-[1080px] bg-[#0a0a0a] p-16 flex flex-col"
                   style={{
                     transform: "scale(0.5)",
                     transformOrigin: "top left",
@@ -2637,7 +2673,7 @@ function WrappedPage() {
                 </h3>
                 <div
                   ref={activityCardRef}
-                  className="w-[1920px] h-[1080px] bg-[#0a0a0a] p-16 flex flex-col border border-white/20 rounded-4xl"
+                  className="w-[1920px] h-[1080px] bg-[#0a0a0a] p-16 flex flex-col"
                   style={{
                     transform: "scale(0.4)",
                     transformOrigin: "top left",
@@ -2652,7 +2688,7 @@ function WrappedPage() {
                   <div className="flex-1 flex flex-col justify-center">
                     {shouldSplitActivityGraph(
                       data.year,
-                      data.activity_graph
+                      data.activity_graph,
                     ) ? (
                       /* Split into two rows for full year */
                       <div className="flex flex-col items-center">
@@ -2666,7 +2702,7 @@ function WrappedPage() {
                                 data.year,
                                 data.activity_graph,
                                 1,
-                                6
+                                6,
                               ).map((week, weekIdx) => {
                                 const firstDate = week[0];
                                 const isFirstWeekOfMonth =
@@ -2704,17 +2740,17 @@ function WrappedPage() {
                                     data.year,
                                     data.activity_graph,
                                     1,
-                                    6
+                                    6,
                                   ).map((week, weekIdx) => {
                                     const date = week[dayIdx];
                                     const bgColor = getActivityColor(
                                       date,
-                                      data.activity_graph
+                                      data.activity_graph,
                                     );
                                     const activity = data.activity_graph.find(
                                       (a) =>
                                         a.date ===
-                                        date.toISOString().split("T")[0]
+                                        date.toISOString().split("T")[0],
                                     );
                                     return (
                                       <div
@@ -2727,7 +2763,7 @@ function WrappedPage() {
                                     );
                                   })}
                                 </div>
-                              )
+                              ),
                             )}
                             <div className="h-2" />
                             <div className="flex gap-1.5">
@@ -2736,7 +2772,7 @@ function WrappedPage() {
                                 data.year,
                                 data.activity_graph,
                                 7,
-                                12
+                                12,
                               ).map((week, weekIdx) => {
                                 const firstDate = week[0];
                                 const isFirstWeekOfMonth =
@@ -2780,17 +2816,17 @@ function WrappedPage() {
                                     data.year,
                                     data.activity_graph,
                                     7,
-                                    12
+                                    12,
                                   ).map((week, weekIdx) => {
                                     const date = week[dayIdx];
                                     const bgColor = getActivityColor(
                                       date,
-                                      data.activity_graph
+                                      data.activity_graph,
                                     );
                                     const activity = data.activity_graph.find(
                                       (a) =>
                                         a.date ===
-                                        date.toISOString().split("T")[0]
+                                        date.toISOString().split("T")[0],
                                     );
                                     return (
                                       <div
@@ -2803,7 +2839,7 @@ function WrappedPage() {
                                     );
                                   })}
                                 </div>
-                              )
+                              ),
                             )}
                           </div>
                         </div>
@@ -2817,7 +2853,7 @@ function WrappedPage() {
                             <div className="w-8" />
                             {generateCalendarWeeks(
                               data.year,
-                              data.activity_graph
+                              data.activity_graph,
                             ).map((week, weekIdx) => {
                               const firstDate = week[0];
                               const isFirstWeekOfMonth =
@@ -2859,17 +2895,17 @@ function WrappedPage() {
                                 </div>
                                 {generateCalendarWeeks(
                                   data.year,
-                                  data.activity_graph
+                                  data.activity_graph,
                                 ).map((week, weekIdx) => {
                                   const date = week[dayIdx];
                                   const bgColor = getActivityColor(
                                     date,
-                                    data.activity_graph
+                                    data.activity_graph,
                                   );
                                   const activity = data.activity_graph.find(
                                     (a) =>
                                       a.date ===
-                                      date.toISOString().split("T")[0]
+                                      date.toISOString().split("T")[0],
                                   );
                                   return (
                                     <div
@@ -2882,7 +2918,7 @@ function WrappedPage() {
                                   );
                                 })}
                               </div>
-                            )
+                            ),
                           )}
                         </div>
                       </div>
@@ -2923,7 +2959,7 @@ function WrappedPage() {
                 </h3>
                 <div
                   ref={overallCardRef}
-                  className="w-[1080px] h-[1440px] bg-[#0a0a0a] p-16 flex flex-col border  border-white/20 rounded-4xl relative"
+                  className="w-[1080px] h-[1440px] bg-[#0a0a0a] p-16 flex flex-col relative"
                   style={{
                     transform: "scale(0.5)",
                     transformOrigin: "top left",
@@ -2951,7 +2987,7 @@ function WrappedPage() {
                         <img
                           src={data.profile_picture}
                           alt={handle}
-                          className="w-14 h-14 rounded-full border-2 opacity-75 border-white/20"
+                          className="w-14 h-14 rounded-full border-2 opacity-75 border-white/20 z-120000"
                         />
                       )}
                       <p className="text-3xl text-white/40">@{handle}'s</p>
@@ -2974,29 +3010,49 @@ function WrappedPage() {
                     <div className="grid grid-cols-2">
                       <div className="ml-4">
                         <h3 className="text-4xl text-white/70 mb-8">Artists</h3>
-                        <ol className="list-decimal list-outside ml-6 space-y-4 text-white text-xl">
+                        <div className="space-y-4">
                           {data.top_artists.slice(0, 5).map((artist, idx) => (
-                            <li key={idx} className="font-medium text-4xl">
-                              {artist.name}
-                              <p className="text-xl text-white/50">
-                                {artist.plays} plays
-                              </p>
-                            </li>
+                            <div key={idx} className="flex gap-4">
+                              <span
+                                className="text-4xl font-medium text-white/70 shrink-0"
+                                style={{ width: "1.5rem" }}
+                              >
+                                {idx + 1}.
+                              </span>
+                              <div>
+                                <p className="text-4xl font-medium text-white">
+                                  {artist.name}
+                                </p>
+                                <p className="text-xl text-white/50">
+                                  {artist.plays} plays
+                                </p>
+                              </div>
+                            </div>
                           ))}
-                        </ol>
+                        </div>
                       </div>
                       <div>
                         <h3 className="text-4xl text-white/70 mb-8">Tracks</h3>
-                        <ol className="list-decimal list-outside ml-6 space-y-4 text-white text-xl">
+                        <div className="space-y-4">
                           {data.top_tracks.slice(0, 5).map((t, idx) => (
-                            <li key={idx} className="font-medium text-4xl">
-                              {t.title}
-                              <p className="text-xl text-white/50">
-                                {t.artist}
-                              </p>
-                            </li>
+                            <div key={idx} className="flex gap-4">
+                              <span
+                                className="text-4xl font-medium text-white/70 shrink-0"
+                                style={{ width: "1.5rem" }}
+                              >
+                                {idx + 1}.
+                              </span>
+                              <div>
+                                <p className="text-4xl font-medium text-white">
+                                  {t.title}
+                                </p>
+                                <p className="text-xl text-white/50">
+                                  {t.artist}
+                                </p>
+                              </div>
+                            </div>
                           ))}
-                        </ol>
+                        </div>
                       </div>
                     </div>
                   </div>
