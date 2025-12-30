@@ -38,7 +38,7 @@ fn extract_artists_from_play(play: &Play) -> (Vec<String>, Option<Vec<String>>) 
 }
 
 /// Resolve DID to find the user's PDS endpoint
-async fn resolve_pds(did: &str) -> Result<String> {
+pub async fn resolve_pds(did: &str) -> Result<String> {
     let plc_url = format!("https://plc.directory/{}", did);
     let response = reqwest::get(&plc_url).await?;
     let doc: serde_json::Value = response.json().await?;
@@ -52,6 +52,49 @@ async fn resolve_pds(did: &str) -> Result<String> {
         .ok_or_else(|| anyhow::anyhow!("no PDS found in DID document"))?;
 
     Ok(service.to_string())
+}
+
+#[derive(Debug, Deserialize)]
+struct RepoEntry {
+    did: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct RepoListResponse {
+    repos: Vec<RepoEntry>,
+    cursor: Option<String>,
+}
+
+/// Fetch all DIDs from the relay that have records in the play collection
+pub async fn fetch_all_dids() -> Result<Vec<String>> {
+    let mut all_dids = Vec::new();
+    let mut cursor: Option<String> = None;
+    let base_url =
+        "https://relay1.us-east.bsky.network/xrpc/com.atproto.sync.listReposByCollection";
+
+    loop {
+        let url = if let Some(c) = &cursor {
+            format!("{}?collection={}&cursor={}", base_url, PLAY_COLLECTION, c)
+        } else {
+            format!("{}?collection={}", base_url, PLAY_COLLECTION)
+        };
+
+        tracing::info!("fetching DIDs from relay (cursor: {:?})", cursor);
+        let response = reqwest::get(&url).await?;
+        let list: RepoListResponse = response.json().await?;
+
+        let count = list.repos.len();
+        all_dids.extend(list.repos.into_iter().map(|r| r.did));
+
+        tracing::info!("fetched {} DIDs (total: {})", count, all_dids.len());
+
+        if list.cursor.is_none() || count == 0 {
+            break;
+        }
+        cursor = list.cursor;
+    }
+
+    Ok(all_dids)
 }
 
 /// Download and parse a CAR file from a user's AT Protocol repo

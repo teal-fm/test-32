@@ -17,6 +17,7 @@ use tracing_subscriber;
 pub mod atproto;
 pub mod db;
 pub mod fanart;
+pub mod global_stats;
 pub mod models;
 pub mod wrapped;
 
@@ -28,71 +29,71 @@ struct AppState {
     fanart_api_key: String,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct WrappedData {
-    year: u32,
-    total_minutes: f64,
-    total_plays: u32,
-    top_artists: Vec<TopArtist>,
-    top_tracks: Vec<TopTrack>,
-    new_artists_count: u32,
-    activity_graph: Vec<DayActivity>,
-    weekday_avg_minutes: f64,
-    weekend_avg_minutes: f64,
-    longest_streak: u32,
-    days_active: u32,
+    pub year: u32,
+    pub total_minutes: f64,
+    pub total_plays: u32,
+    pub top_artists: Vec<TopArtist>,
+    pub top_tracks: Vec<TopTrack>,
+    pub new_artists_count: u32,
+    pub activity_graph: Vec<DayActivity>,
+    pub weekday_avg_minutes: f64,
+    pub weekend_avg_minutes: f64,
+    pub longest_streak: u32,
+    pub days_active: u32,
     pub avg_track_length_ms: i32,
     pub listening_diversity: f64,       // unique tracks / total plays
     pub hourly_distribution: [u32; 24], // plays per hour (UTC)
     pub top_hour: u8,                   // hour with most plays (0-23)
     pub longest_session_minutes: u32,   // longest continuous listening session
     #[serde(skip_serializing_if = "Option::is_none")]
-    similar_users: Option<Vec<MusicBuddy>>,
+    pub similar_users: Option<Vec<MusicBuddy>>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-struct MusicBuddy {
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct MusicBuddy {
     did: String,
     similarity_score: f64,
     shared_artists: Vec<String>,
     shared_artist_count: u32,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-struct TopArtist {
-    name: String,
-    plays: u32,
-    minutes: f64,
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct TopArtist {
+    pub name: String,
+    pub plays: u32,
+    pub minutes: f64,
     #[serde(skip_serializing_if = "Option::is_none")]
-    mb_id: Option<String>,
+    pub mb_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    image_url: Option<String>,
+    pub image_url: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    top_track: Option<String>,
+    pub top_track: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    top_track_plays: Option<u32>,
+    pub top_track_plays: Option<u32>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    top_track_duration_ms: Option<i32>,
+    pub top_track_duration_ms: Option<i32>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-struct TopTrack {
-    title: String,
-    artist: String,
-    plays: u32,
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct TopTrack {
+    pub title: String,
+    pub artist: String,
+    pub plays: u32,
     #[serde(skip_serializing_if = "Option::is_none")]
-    recording_mb_id: Option<String>,
+    pub recording_mb_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    release_name: Option<String>,
+    pub release_name: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    release_mb_id: Option<String>,
+    pub release_mb_id: Option<String>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-struct DayActivity {
-    date: String,
-    plays: u32,
-    minutes: f64,
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct DayActivity {
+    pub date: String,
+    pub plays: u32,
+    pub minutes: f64,
 }
 
 #[derive(Debug, Deserialize)]
@@ -279,6 +280,30 @@ async fn get_wrapped(
     Ok(Json(data))
 }
 
+async fn get_global_stats(
+    State(state): State<AppState>,
+    Path(year): Path<u32>,
+) -> Result<Json<global_stats::GlobalStats>, axum::http::StatusCode> {
+    if let Ok(Some(cached)) = db::get_cached_global_stats(&state.db, year).await {
+        tracing::info!("returning cached global stats for year {}", year);
+        return Ok(Json(cached));
+    }
+
+    tracing::info!("calculating global stats for year {}", year);
+    let stats = global_stats::calculate_global_stats(&state.db, year)
+        .await
+        .map_err(|e| {
+            tracing::error!("failed to calculate global stats: {}", e);
+            axum::http::StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+
+    if let Err(e) = db::cache_global_stats(&state.db, year, &stats).await {
+        tracing::warn!("failed to cache global stats: {}", e);
+    }
+
+    Ok(Json(stats))
+}
+
 async fn health_check() -> &'static str {
     "ok"
 }
@@ -342,6 +367,7 @@ pub async fn run() {
     let app = Router::new()
         .route("/health", get(health_check))
         .route("/api/wrapped/:year", get(get_wrapped))
+        .route("/api/global-stats/:year", get(get_global_stats))
         .route("/images/:filename", get(serve_image))
         .layer(CorsLayer::permissive())
         .with_state(state);
