@@ -2497,363 +2497,198 @@ function WrappedPage() {
         </div>
       </section>
 
-      {process.env.NODE_ENV === "development" && (
-        // Share cards - visible for development
-        <section className="py-24 px-8 bg-[#0a0a0a]">
-          <div className="max-w-7xl mx-auto">
-            <h2 className="text-4xl font-bold text-white mb-12">
-              Share Cards Preview
-            </h2>
-            <div className="space-y-12">
-              {/* Top Stats Card */}
-              <div>
-                <h3 className="text-white text-xl mb-4">
-                  Top Stats (1080x1080)
-                </h3>
-                <div
-                  ref={topStatsCardRef}
-                  className="w-[1080px] h-[1080px] bg-[#0a0a0a] p-16 flex flex-col justify-between"
-                  style={{
-                    transform: "scale(0.5)",
-                    transformOrigin: "top left",
-                  }}
-                >
-                  <div>
-                    <p className="text-3xl uppercase tracking-[0.3em] text-white/40 mb-12">
-                      {data.year} Wrapped
-                    </p>
-                    <h2 className="text-9xl font-bold text-white mb-4">
-                      {Math.round(data.total_minutes).toLocaleString()}
-                    </h2>
-                    <p className="text-5xl text-white/80 mb-24">
-                      minutes of music
-                    </p>
+      {/* Share cards - hidden but renderable */}
+      <section className="fixed -left-[9999px] top-0 py-24 px-8 bg-[#0a0a0a]">
+        <div className="max-w-7xl mx-auto">
+          <h2 className="text-4xl font-bold text-white mb-12">
+            Share Cards Preview
+          </h2>
+          <div className="space-y-12">
+            {/* Top Stats Card */}
+            <div>
+              <h3 className="text-white text-xl mb-4">Top Stats (1080x1080)</h3>
+              <div
+                ref={topStatsCardRef}
+                className="w-[1080px] h-[1080px] bg-[#0a0a0a] p-16 flex flex-col justify-between"
+                style={{
+                  transform: "scale(0.5)",
+                  transformOrigin: "top left",
+                }}
+              >
+                <div>
+                  <p className="text-3xl uppercase tracking-[0.3em] text-white/40 mb-12">
+                    {data.year} Wrapped
+                  </p>
+                  <h2 className="text-9xl font-bold text-white mb-4">
+                    {Math.round(data.total_minutes).toLocaleString()}
+                  </h2>
+                  <p className="text-5xl text-white/80 mb-24">
+                    minutes of music
+                  </p>
 
-                    <div className="space-y-8">
-                      <div className="flex justify-between items-baseline border-b border-white/10 pb-6">
-                        <span className="text-3xl text-white/60">
-                          Total plays
-                        </span>
-                        <span className="text-5xl font-bold text-white">
-                          {data.total_plays.toLocaleString()}
-                        </span>
-                      </div>
-                      <div className="flex justify-between items-baseline border-b border-white/10 pb-6">
-                        <span className="text-3xl text-white/60">
-                          Artists played
-                        </span>
-                        <span
-                          className="text-5xl font-bold"
-                          style={{ color: "#00ffaa" }}
-                        >
-                          {data.new_artists_count}
-                        </span>
-                      </div>
-                      <div className="flex justify-between items-baseline border-b border-white/10 pb-6">
-                        <span className="text-3xl text-white/60">
-                          Longest streak
-                        </span>
-                        <span
-                          className="text-5xl font-bold"
-                          style={{ color: "#ff0099" }}
-                        >
-                          {data.longest_streak} days
-                        </span>
-                      </div>
-                      <div className="flex justify-between items-baseline border-b border-white/10 pb-6">
-                        <span className="text-3xl text-white/60">
-                          Longest session
-                        </span>
-                        <span
-                          className="text-5xl font-bold"
-                          style={{ color: "#0099ff" }}
-                        >
-                          {Math.round(data.longest_session_minutes / 60)}h
-                          {Math.round(data.longest_session_minutes % 60)}m
-                        </span>
-                      </div>
+                  <div className="space-y-8">
+                    <div className="flex justify-between items-baseline border-b border-white/10 pb-6">
+                      <span className="text-3xl text-white/60">
+                        Total plays
+                      </span>
+                      <span className="text-5xl font-bold text-white">
+                        {data.total_plays.toLocaleString()}
+                      </span>
                     </div>
-                  </div>
-
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-4">
-                      {data.profile_picture && (
-                        <img
-                          src={data.profile_picture}
-                          alt={handle}
-                          className="w-12 h-12 rounded-full border border-white/20"
-                        />
-                      )}
-                      <p className="text-2xl text-white/60">@{handle}</p>
+                    <div className="flex justify-between items-baseline border-b border-white/10 pb-6">
+                      <span className="text-3xl text-white/60">
+                        Artists played
+                      </span>
+                      <span
+                        className="text-5xl font-bold"
+                        style={{ color: "#00ffaa" }}
+                      >
+                        {data.new_artists_count}
+                      </span>
                     </div>
-                    <p className="text-2xl text-white/40">
-                      yearinmusic.teal.fm
-                    </p>
+                    <div className="flex justify-between items-baseline border-b border-white/10 pb-6">
+                      <span className="text-3xl text-white/60">
+                        Longest streak
+                      </span>
+                      <span
+                        className="text-5xl font-bold"
+                        style={{ color: "#ff0099" }}
+                      >
+                        {data.longest_streak} days
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-baseline border-b border-white/10 pb-6">
+                      <span className="text-3xl text-white/60">
+                        Longest session
+                      </span>
+                      <span
+                        className="text-5xl font-bold"
+                        style={{ color: "#0099ff" }}
+                      >
+                        {Math.round(data.longest_session_minutes / 60)}h
+                        {Math.round(data.longest_session_minutes % 60)}m
+                      </span>
+                    </div>
                   </div>
                 </div>
-              </div>
 
-              {/* Top Artist Card */}
-              <div>
-                <h3 className="text-white text-xl mb-4">
-                  Top Artist (1080x1080)
-                </h3>
-                <div
-                  ref={topArtistCardRef}
-                  className="w-[1080px] h-[1080px] bg-[#0a0a0a] p-16 flex flex-col"
-                  style={{
-                    transform: "scale(0.5)",
-                    transformOrigin: "top left",
-                  }}
-                >
-                  <div>
-                    <p className="text-3xl uppercase tracking-[0.3em] text-white/40 mb-12">
-                      Your Top Artist · {data.year}
-                    </p>
-                  </div>
-
-                  <div className="flex-1 flex flex-col justify-center mt-12">
-                    {data.top_artists[0]?.image_url && (
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    {data.profile_picture && (
                       <img
-                        src={data.top_artists[0].image_url}
-                        alt={data.top_artists[0].name}
-                        className="w-96 h-96 object-cover rounded-3xl mx-auto mb-12 brightness-90 scale-150 -z-20"
+                        src={data.profile_picture}
+                        alt={handle}
+                        className="w-12 h-12 rounded-full border border-white/20"
                       />
                     )}
-                    <h2 className="text-7xl font-bold text-white text-center mb-16 leading-tight text-shadow-lg">
-                      {data.top_artists[0]?.name}
-                    </h2>
-
-                    <div className="flex gap-16 justify-center">
-                      <div className="text-center">
-                        <p
-                          className="text-6xl font-bold mb-3"
-                          style={{ color: "#00d9ff" }}
-                        >
-                          {Math.round(data.top_artists[0]?.minutes || 0)}
-                        </p>
-                        <p className="text-2xl text-white/60">
-                          minutes listened
-                        </p>
-                      </div>
-                      <div className="text-center">
-                        <p
-                          className="text-6xl font-bold mb-3"
-                          style={{ color: "#ff0099" }}
-                        >
-                          {data.top_artists[0]?.plays || 0}
-                        </p>
-                        <p className="text-2xl text-white/60">tracks played</p>
-                      </div>
-                    </div>
+                    <p className="text-2xl text-white/60">@{handle}</p>
                   </div>
-
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-4">
-                      {data.profile_picture && (
-                        <img
-                          src={data.profile_picture}
-                          alt={handle}
-                          className="w-12 h-12 rounded-full border border-white/20"
-                        />
-                      )}
-                      <p className="text-2xl text-white/60">@{handle}</p>
-                    </div>
-                    <p className="text-2xl text-white/40">
-                      yearinmusic.teal.fm
-                    </p>
-                  </div>
+                  <p className="text-2xl text-white/40">yearinmusic.teal.fm</p>
                 </div>
               </div>
+            </div>
 
-              {/* Activity Graph Card */}
-              <div>
-                <h3 className="text-white text-xl mb-4">
-                  Activity (1920x1080)
-                </h3>
-                <div
-                  ref={activityCardRef}
-                  className="w-[1920px] h-[1080px] bg-[#0a0a0a] p-16 flex flex-col"
-                  style={{
-                    transform: "scale(0.4)",
-                    transformOrigin: "top left",
-                  }}
-                >
-                  <div>
-                    <p className="text-3xl uppercase tracking-[0.3em] text-white/40">
-                      {data.year} Activity
-                    </p>
+            {/* Top Artist Card */}
+            <div>
+              <h3 className="text-white text-xl mb-4">
+                Top Artist (1080x1080)
+              </h3>
+              <div
+                ref={topArtistCardRef}
+                className="w-[1080px] h-[1080px] bg-[#0a0a0a] p-16 flex flex-col"
+                style={{
+                  transform: "scale(0.5)",
+                  transformOrigin: "top left",
+                }}
+              >
+                <div>
+                  <p className="text-3xl uppercase tracking-[0.3em] text-white/40 mb-12">
+                    Your Top Artist · {data.year}
+                  </p>
+                </div>
+
+                <div className="flex-1 flex flex-col justify-center mt-12">
+                  {data.top_artists[0]?.image_url && (
+                    <img
+                      src={data.top_artists[0].image_url}
+                      alt={data.top_artists[0].name}
+                      className="w-96 h-96 object-cover rounded-3xl mx-auto mb-12 brightness-90 scale-150 -z-20"
+                    />
+                  )}
+                  <h2 className="text-7xl font-bold text-white text-center mb-16 leading-tight text-shadow-lg">
+                    {data.top_artists[0]?.name}
+                  </h2>
+
+                  <div className="flex gap-16 justify-center">
+                    <div className="text-center">
+                      <p
+                        className="text-6xl font-bold mb-3"
+                        style={{ color: "#00d9ff" }}
+                      >
+                        {Math.round(data.top_artists[0]?.minutes || 0)}
+                      </p>
+                      <p className="text-2xl text-white/60">minutes listened</p>
+                    </div>
+                    <div className="text-center">
+                      <p
+                        className="text-6xl font-bold mb-3"
+                        style={{ color: "#ff0099" }}
+                      >
+                        {data.top_artists[0]?.plays || 0}
+                      </p>
+                      <p className="text-2xl text-white/60">tracks played</p>
+                    </div>
                   </div>
+                </div>
 
-                  <div className="flex-1 flex flex-col justify-center">
-                    {shouldSplitActivityGraph(
-                      data.year,
-                      data.activity_graph,
-                    ) ? (
-                      /* Split into two rows for full year */
-                      <div className="flex flex-col items-center">
-                        {/* First half - Jan to Jun */}
-                        <div className="bg-white/5 rounded-3xl p-8 pt-4 border max-w-min border-white/10">
-                          <div className="inline-flex flex-col gap-1.5 min-w-full justify-center items-center">
-                            {/* Month labels */}
-                            <div className="flex gap-1.5">
-                              <div className="w-6" />
-                              {generateCalendarWeeks(
-                                data.year,
-                                data.activity_graph,
-                                1,
-                                6,
-                              ).map((week, weekIdx) => {
-                                const firstDate = week[0];
-                                const isFirstWeekOfMonth =
-                                  firstDate.getDate() <= 7;
-                                const monthNames = [
-                                  "Jan",
-                                  "Feb",
-                                  "Mar",
-                                  "Apr",
-                                  "May",
-                                  "Jun",
-                                ];
-                                return (
-                                  <div
-                                    key={weekIdx}
-                                    className="w-8 text-lg text-white/30"
-                                  >
-                                    {isFirstWeekOfMonth &&
-                                      monthNames[firstDate.getMonth()]}
-                                  </div>
-                                );
-                              })}
-                            </div>
-                            {/* Day rows */}
-                            {["Mon", "", "Wed", "", "Fri", "", "Sun"].map(
-                              (day, dayIdx) => (
-                                <div
-                                  key={dayIdx}
-                                  className="flex gap-1.5 items-center"
-                                >
-                                  <div className="w-8 text-sm text-white/30">
-                                    {day}
-                                  </div>
-                                  {generateCalendarWeeks(
-                                    data.year,
-                                    data.activity_graph,
-                                    1,
-                                    6,
-                                  ).map((week, weekIdx) => {
-                                    const date = week[dayIdx];
-                                    const bgColor = getActivityColor(
-                                      date,
-                                      data.activity_graph,
-                                    );
-                                    const activity = data.activity_graph.find(
-                                      (a) =>
-                                        a.date ===
-                                        date.toISOString().split("T")[0],
-                                    );
-                                    return (
-                                      <div
-                                        key={weekIdx}
-                                        className={`w-8 h-8 rounded ${bgColor}`}
-                                        title={`${date.toDateString()}: ${(
-                                          (activity?.minutes || 0) / 60
-                                        ).toFixed(1)} hours`}
-                                      />
-                                    );
-                                  })}
-                                </div>
-                              ),
-                            )}
-                            <div className="h-2" />
-                            <div className="flex gap-1.5">
-                              <div className="w-6" />
-                              {generateCalendarWeeks(
-                                data.year,
-                                data.activity_graph,
-                                7,
-                                12,
-                              ).map((week, weekIdx) => {
-                                const firstDate = week[0];
-                                const isFirstWeekOfMonth =
-                                  firstDate.getDate() <= 7;
-                                const monthNames = [
-                                  "",
-                                  "",
-                                  "",
-                                  "",
-                                  "",
-                                  "",
-                                  "Jul",
-                                  "Aug",
-                                  "Sep",
-                                  "Oct",
-                                  "Nov",
-                                  "Dec",
-                                ];
-                                return (
-                                  <div
-                                    key={weekIdx}
-                                    className="w-8 text-lg text-white/30"
-                                  >
-                                    {isFirstWeekOfMonth &&
-                                      monthNames[firstDate.getMonth()]}
-                                  </div>
-                                );
-                              })}
-                            </div>
-                            {/* Day rows */}
-                            {["Mon", "", "Wed", "", "Fri", "", "Sun"].map(
-                              (day, dayIdx) => (
-                                <div
-                                  key={dayIdx}
-                                  className="flex gap-1.5 items-center"
-                                >
-                                  <div className="w-8 text-sm text-white/30">
-                                    {day}
-                                  </div>
-                                  {generateCalendarWeeks(
-                                    data.year,
-                                    data.activity_graph,
-                                    7,
-                                    12,
-                                  ).map((week, weekIdx) => {
-                                    const date = week[dayIdx];
-                                    const bgColor = getActivityColor(
-                                      date,
-                                      data.activity_graph,
-                                    );
-                                    const activity = data.activity_graph.find(
-                                      (a) =>
-                                        a.date ===
-                                        date.toISOString().split("T")[0],
-                                    );
-                                    return (
-                                      <div
-                                        key={weekIdx}
-                                        className={`w-8 h-8 rounded ${bgColor}`}
-                                        title={`${date.toDateString()}: ${(
-                                          (activity?.minutes || 0) / 60
-                                        ).toFixed(1)} hours`}
-                                      />
-                                    );
-                                  })}
-                                </div>
-                              ),
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    ) : (
-                      /* Single row for shorter activity periods */
-                      <div className="bg-white/5 rounded-3xl p-12 border border-white/10">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    {data.profile_picture && (
+                      <img
+                        src={data.profile_picture}
+                        alt={handle}
+                        className="w-12 h-12 rounded-full border border-white/20"
+                      />
+                    )}
+                    <p className="text-2xl text-white/60">@{handle}</p>
+                  </div>
+                  <p className="text-2xl text-white/40">yearinmusic.teal.fm</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Activity Graph Card */}
+            <div>
+              <h3 className="text-white text-xl mb-4">Activity (1920x1080)</h3>
+              <div
+                ref={activityCardRef}
+                className="w-[1920px] h-[1080px] bg-[#0a0a0a] p-16 flex flex-col"
+                style={{
+                  transform: "scale(0.4)",
+                  transformOrigin: "top left",
+                }}
+              >
+                <div>
+                  <p className="text-3xl uppercase tracking-[0.3em] text-white/40">
+                    {data.year} Activity
+                  </p>
+                </div>
+
+                <div className="flex-1 flex flex-col justify-center">
+                  {shouldSplitActivityGraph(data.year, data.activity_graph) ? (
+                    /* Split into two rows for full year */
+                    <div className="flex flex-col items-center">
+                      {/* First half - Jan to Jun */}
+                      <div className="bg-white/5 rounded-3xl p-8 pt-4 border max-w-min border-white/10">
                         <div className="inline-flex flex-col gap-1.5 min-w-full justify-center items-center">
                           {/* Month labels */}
                           <div className="flex gap-1.5">
-                            <div className="w-8" />
+                            <div className="w-6" />
                             {generateCalendarWeeks(
                               data.year,
                               data.activity_graph,
+                              1,
+                              6,
                             ).map((week, weekIdx) => {
                               const firstDate = week[0];
                               const isFirstWeekOfMonth =
@@ -2865,17 +2700,11 @@ function WrappedPage() {
                                 "Apr",
                                 "May",
                                 "Jun",
-                                "Jul",
-                                "Aug",
-                                "Sep",
-                                "Oct",
-                                "Nov",
-                                "Dec",
                               ];
                               return (
                                 <div
                                   key={weekIdx}
-                                  className="w-8 text-2xl -rotate-25 pl-4 text-white/30"
+                                  className="w-8 text-lg text-white/30"
                                 >
                                   {isFirstWeekOfMonth &&
                                     monthNames[firstDate.getMonth()]}
@@ -2890,12 +2719,90 @@ function WrappedPage() {
                                 key={dayIdx}
                                 className="flex gap-1.5 items-center"
                               >
-                                <div className="w-12 text-lg text-white/30">
+                                <div className="w-8 text-sm text-white/30">
                                   {day}
                                 </div>
                                 {generateCalendarWeeks(
                                   data.year,
                                   data.activity_graph,
+                                  1,
+                                  6,
+                                ).map((week, weekIdx) => {
+                                  const date = week[dayIdx];
+                                  const bgColor = getActivityColor(
+                                    date,
+                                    data.activity_graph,
+                                  );
+                                  const activity = data.activity_graph.find(
+                                    (a) =>
+                                      a.date ===
+                                      date.toISOString().split("T")[0],
+                                  );
+                                  return (
+                                    <div
+                                      key={weekIdx}
+                                      className={`w-8 h-8 rounded ${bgColor}`}
+                                      title={`${date.toDateString()}: ${(
+                                        (activity?.minutes || 0) / 60
+                                      ).toFixed(1)} hours`}
+                                    />
+                                  );
+                                })}
+                              </div>
+                            ),
+                          )}
+                          <div className="h-2" />
+                          <div className="flex gap-1.5">
+                            <div className="w-6" />
+                            {generateCalendarWeeks(
+                              data.year,
+                              data.activity_graph,
+                              7,
+                              12,
+                            ).map((week, weekIdx) => {
+                              const firstDate = week[0];
+                              const isFirstWeekOfMonth =
+                                firstDate.getDate() <= 7;
+                              const monthNames = [
+                                "",
+                                "",
+                                "",
+                                "",
+                                "",
+                                "",
+                                "Jul",
+                                "Aug",
+                                "Sep",
+                                "Oct",
+                                "Nov",
+                                "Dec",
+                              ];
+                              return (
+                                <div
+                                  key={weekIdx}
+                                  className="w-8 text-lg text-white/30"
+                                >
+                                  {isFirstWeekOfMonth &&
+                                    monthNames[firstDate.getMonth()]}
+                                </div>
+                              );
+                            })}
+                          </div>
+                          {/* Day rows */}
+                          {["Mon", "", "Wed", "", "Fri", "", "Sun"].map(
+                            (day, dayIdx) => (
+                              <div
+                                key={dayIdx}
+                                className="flex gap-1.5 items-center"
+                              >
+                                <div className="w-8 text-sm text-white/30">
+                                  {day}
+                                </div>
+                                {generateCalendarWeeks(
+                                  data.year,
+                                  data.activity_graph,
+                                  7,
+                                  12,
                                 ).map((week, weekIdx) => {
                                   const date = week[dayIdx];
                                   const bgColor = getActivityColor(
@@ -2922,151 +2829,223 @@ function WrappedPage() {
                           )}
                         </div>
                       </div>
-                    )}
-
-                    <div className="mt-16 text-center">
-                      <p className="text-5xl font-bold text-white mb-6">
-                        {data.days_active} days active
-                      </p>
-                      <p className="text-3xl text-white/60">
-                        {data.longest_streak} day streak
-                      </p>
                     </div>
-                  </div>
-
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-4">
-                      {data.profile_picture && (
-                        <img
-                          src={data.profile_picture}
-                          alt={handle}
-                          className="w-12 h-12 rounded-full border border-white/20"
-                        />
-                      )}
-                      <p className="text-2xl text-white/60">@{handle}</p>
+                  ) : (
+                    /* Single row for shorter activity periods */
+                    <div className="bg-white/5 rounded-3xl p-12 border border-white/10">
+                      <div className="inline-flex flex-col gap-1.5 min-w-full justify-center items-center">
+                        {/* Month labels */}
+                        <div className="flex gap-1.5">
+                          <div className="w-8" />
+                          {generateCalendarWeeks(
+                            data.year,
+                            data.activity_graph,
+                          ).map((week, weekIdx) => {
+                            const firstDate = week[0];
+                            const isFirstWeekOfMonth = firstDate.getDate() <= 7;
+                            const monthNames = [
+                              "Jan",
+                              "Feb",
+                              "Mar",
+                              "Apr",
+                              "May",
+                              "Jun",
+                              "Jul",
+                              "Aug",
+                              "Sep",
+                              "Oct",
+                              "Nov",
+                              "Dec",
+                            ];
+                            return (
+                              <div
+                                key={weekIdx}
+                                className="w-8 text-2xl -rotate-25 pl-4 text-white/30"
+                              >
+                                {isFirstWeekOfMonth &&
+                                  monthNames[firstDate.getMonth()]}
+                              </div>
+                            );
+                          })}
+                        </div>
+                        {/* Day rows */}
+                        {["Mon", "", "Wed", "", "Fri", "", "Sun"].map(
+                          (day, dayIdx) => (
+                            <div
+                              key={dayIdx}
+                              className="flex gap-1.5 items-center"
+                            >
+                              <div className="w-12 text-lg text-white/30">
+                                {day}
+                              </div>
+                              {generateCalendarWeeks(
+                                data.year,
+                                data.activity_graph,
+                              ).map((week, weekIdx) => {
+                                const date = week[dayIdx];
+                                const bgColor = getActivityColor(
+                                  date,
+                                  data.activity_graph,
+                                );
+                                const activity = data.activity_graph.find(
+                                  (a) =>
+                                    a.date === date.toISOString().split("T")[0],
+                                );
+                                return (
+                                  <div
+                                    key={weekIdx}
+                                    className={`w-8 h-8 rounded ${bgColor}`}
+                                    title={`${date.toDateString()}: ${(
+                                      (activity?.minutes || 0) / 60
+                                    ).toFixed(1)} hours`}
+                                  />
+                                );
+                              })}
+                            </div>
+                          ),
+                        )}
+                      </div>
                     </div>
-                    <p className="text-2xl text-white/40">
-                      yearinmusic.teal.fm
+                  )}
+
+                  <div className="mt-16 text-center">
+                    <p className="text-5xl font-bold text-white mb-6">
+                      {data.days_active} days active
+                    </p>
+                    <p className="text-3xl text-white/60">
+                      {data.longest_streak} day streak
                     </p>
                   </div>
                 </div>
-              </div>
 
-              {/* Overall Card */}
-              <div>
-                <h3 className="text-white text-xl mb-4">
-                  Overall Top 5s (1080x1080)
-                </h3>
-                <div
-                  ref={overallCardRef}
-                  className="w-[1080px] h-[1440px] bg-[#0a0a0a] p-16 flex flex-col relative"
-                  style={{
-                    transform: "scale(0.5)",
-                    transformOrigin: "top left",
-                  }}
-                >
-                  {data.top_artists[0]?.image_url && (
-                    <div className="absolute w-full -m-16 -z-10">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-4">
+                    {data.profile_picture && (
                       <img
-                        src={data.top_artists[0].image_url}
-                        alt={data.top_artists[0].name}
-                        className="aspect-square w-full object-cover rounded-2xl absolute top-0 left-0 -z-20"
+                        src={data.profile_picture}
+                        alt={handle}
+                        className="w-12 h-12 rounded-full border border-white/20"
                       />
-                      <div
-                        className="aspect-square w-full rounded-2xl absolute top-0 left-0 pointer-events-none z-20"
-                        style={{
-                          background:
-                            "linear-gradient(#0a0a0a, #0a0a0a70, transparent, #0a0a0a70, #0a0a0ac0, #0a0a0a)",
-                        }}
+                    )}
+                    <p className="text-2xl text-white/60">@{handle}</p>
+                  </div>
+                  <p className="text-2xl text-white/40">yearinmusic.teal.fm</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Overall Card */}
+            <div>
+              <h3 className="text-white text-xl mb-4">
+                Overall Top 5s (1080x1080)
+              </h3>
+              <div
+                ref={overallCardRef}
+                className="w-[1080px] h-[1440px] bg-[#0a0a0a] p-16 flex flex-col relative"
+                style={{
+                  transform: "scale(0.5)",
+                  transformOrigin: "top left",
+                }}
+              >
+                {data.top_artists[0]?.image_url && (
+                  <div className="absolute w-full -m-16 -z-10">
+                    <img
+                      src={data.top_artists[0].image_url}
+                      alt={data.top_artists[0].name}
+                      className="aspect-square w-full object-cover rounded-2xl absolute top-0 left-0 -z-20"
+                    />
+                    <div
+                      className="aspect-square w-full rounded-2xl absolute top-0 left-0 pointer-events-none z-20"
+                      style={{
+                        background:
+                          "linear-gradient(#0a0a0a, #0a0a0a70, transparent, #0a0a0a70, #0a0a0ac0, #0a0a0a)",
+                      }}
+                    />
+                  </div>
+                )}
+                <div>
+                  <div className="flex items-center gap-4 mb-4">
+                    {data.profile_picture && (
+                      <img
+                        src={data.profile_picture}
+                        alt={handle}
+                        className="w-14 h-14 rounded-full border-2 opacity-75 border-white/20 z-120000"
                       />
-                    </div>
-                  )}
-                  <div>
-                    <div className="flex items-center gap-4 mb-4">
-                      {data.profile_picture && (
-                        <img
-                          src={data.profile_picture}
-                          alt={handle}
-                          className="w-14 h-14 rounded-full border-2 opacity-75 border-white/20 z-120000"
-                        />
-                      )}
-                      <p className="text-3xl text-white/40">@{handle}'s</p>
-                    </div>
-                    <p className="text-3xl uppercase tracking-[0.3em] text-white/40 mb-8">
-                      {data.year} year in music
-                    </p>
+                    )}
+                    <p className="text-3xl text-white/40">@{handle}'s</p>
                   </div>
-                  <div className="flex-1 flex flex-col justify-end z-10">
-                    <div className="grid grid-cols-2">
-                      <div>
-                        <h2 className="text-9xl font-semibold text-white/75 text-shadow-lg ml-4">
-                          {Math.round(data.total_minutes).toLocaleString()}
-                        </h2>
-                        <p className="text-5xl text-white/80 mb-8 ml-4">
-                          minutes listened
-                        </p>
-                      </div>
+                  <p className="text-3xl uppercase tracking-[0.3em] text-white/40 mb-8">
+                    {data.year} year in music
+                  </p>
+                </div>
+                <div className="flex-1 flex flex-col justify-end z-10">
+                  <div className="grid grid-cols-2">
+                    <div>
+                      <h2 className="text-9xl font-semibold text-white/75 text-shadow-lg ml-4">
+                        {Math.round(data.total_minutes).toLocaleString()}
+                      </h2>
+                      <p className="text-5xl text-white/80 mb-8 ml-4">
+                        minutes listened
+                      </p>
                     </div>
-                    <div className="grid grid-cols-2">
-                      <div className="ml-4">
-                        <h3 className="text-4xl text-white/70 mb-8">Artists</h3>
-                        <div className="space-y-4">
-                          {data.top_artists.slice(0, 5).map((artist, idx) => (
-                            <div key={idx} className="flex gap-4">
-                              <span
-                                className="text-4xl font-medium text-white/70 shrink-0"
-                                style={{ width: "1.5rem" }}
-                              >
-                                {idx + 1}.
-                              </span>
-                              <div>
-                                <p className="text-4xl font-medium text-white">
-                                  {artist.name}
-                                </p>
-                                <p className="text-xl text-white/50">
-                                  {artist.plays} plays
-                                </p>
-                              </div>
+                  </div>
+                  <div className="grid grid-cols-2">
+                    <div className="ml-4">
+                      <h3 className="text-4xl text-white/70 mb-8">Artists</h3>
+                      <div className="space-y-4">
+                        {data.top_artists.slice(0, 5).map((artist, idx) => (
+                          <div key={idx} className="flex gap-4">
+                            <span
+                              className="text-4xl font-medium text-white/70 shrink-0"
+                              style={{ width: "1.5rem" }}
+                            >
+                              {idx + 1}.
+                            </span>
+                            <div>
+                              <p className="text-4xl font-medium text-white">
+                                {artist.name}
+                              </p>
+                              <p className="text-xl text-white/50">
+                                {artist.plays} plays
+                              </p>
                             </div>
-                          ))}
-                        </div>
+                          </div>
+                        ))}
                       </div>
-                      <div>
-                        <h3 className="text-4xl text-white/70 mb-8">Tracks</h3>
-                        <div className="space-y-4">
-                          {data.top_tracks.slice(0, 5).map((t, idx) => (
-                            <div key={idx} className="flex gap-4">
-                              <span
-                                className="text-4xl font-medium text-white/70 shrink-0"
-                                style={{ width: "1.5rem" }}
-                              >
-                                {idx + 1}.
-                              </span>
-                              <div>
-                                <p className="text-4xl font-medium text-white">
-                                  {t.title}
-                                </p>
-                                <p className="text-xl text-white/50">
-                                  {t.artist}
-                                </p>
-                              </div>
+                    </div>
+                    <div>
+                      <h3 className="text-4xl text-white/70 mb-8">Tracks</h3>
+                      <div className="space-y-4">
+                        {data.top_tracks.slice(0, 5).map((t, idx) => (
+                          <div key={idx} className="flex gap-4">
+                            <span
+                              className="text-4xl font-medium text-white/70 shrink-0"
+                              style={{ width: "1.5rem" }}
+                            >
+                              {idx + 1}.
+                            </span>
+                            <div>
+                              <p className="text-4xl font-medium text-white">
+                                {t.title}
+                              </p>
+                              <p className="text-xl text-white/50">
+                                {t.artist}
+                              </p>
                             </div>
-                          ))}
-                        </div>
+                          </div>
+                        ))}
                       </div>
                     </div>
                   </div>
-                  <div className="flex items-center justify-between mt-8">
-                    <p className="text-2xl text-white/40">
-                      yearinmusic.teal.fm
-                    </p>
-                  </div>
+                </div>
+                <div className="flex items-center justify-between mt-8">
+                  <p className="text-2xl text-white/40">yearinmusic.teal.fm</p>
                 </div>
               </div>
             </div>
           </div>
-        </section>
-      )}
+        </div>
+      </section>
     </div>
   );
 }
