@@ -1,6 +1,14 @@
 import { createFileRoute } from "@tanstack/react-router";
 import StaggeredText from "@/components/StaggeredText";
 import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+} from "recharts";
+import {
   Metaballs,
   MeshGradient,
   SimplexNoise,
@@ -271,27 +279,21 @@ function PercentileChart({
   delay?: number;
 }) {
   const chartRef = useRef<HTMLDivElement>(null);
-  const margin = useResponsiveMargin();
-  const isInView = useInView(chartRef, {
-    once: true,
-    margin: margin as any,
-  });
+
+  const chartData = data.map(([percent, value]) => ({
+    percentile: percent,
+    value,
+    logValue: Math.log10(Math.max(value, 0.1)),
+    label: formatter(value),
+  }));
 
   const maxValue = Math.max(...data.map(([, v]) => v));
   const minValue = Math.max(0.1, Math.min(...data.map(([, v]) => v)));
   const logMax = Math.log10(maxValue);
   const logMin = Math.log10(minValue);
-  const logRange = logMax - logMin || 1;
 
   const p50Value = data.find(([p]) => p === 50)?.[1] || 0;
   const p100Value = data.find(([p]) => p === 100)?.[1] || 0;
-
-  const logTick1 = Math.log10(minValue) + logRange * 0.25;
-  const logTick2 = Math.log10(minValue) + logRange * 0.5;
-  const logTick3 = Math.log10(minValue) + logRange * 0.75;
-  const tick1Value = Math.pow(10, logTick1);
-  const tick2Value = Math.pow(10, logTick2);
-  const tick3Value = Math.pow(10, logTick3);
 
   const formatNumber = (n: number) => {
     if (n >= 1000000) return `${(n / 1000000).toFixed(1)}M`;
@@ -305,62 +307,65 @@ function PercentileChart({
         <p className="text-xs uppercase tracking-[0.3em] text-white/40 mb-6">
           {title}
         </p>
-        <div className="relative h-48 sm:h-56 bg-white/5 backdrop-blur-sm rounded-2xl p-6 border border-white/10">
-          <div className="absolute left-0 top-0 bottom-0 w-8 flex flex-col justify-between py-10">
-            <span className="text-[10px] text-white/30 text-right pr-1">{formatNumber(tick3Value)}</span>
-            <span className="text-[10px] text-white/30 text-right pr-1">{formatNumber(tick2Value)}</span>
-            <span className="text-[10px] text-white/30 text-right pr-1">{formatNumber(tick1Value)}</span>
+        <div className="h-48 sm:h-56 bg-white/5 backdrop-blur-sm rounded-2xl p-4 border border-white/10">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart
+              data={chartData}
+              margin={{ top: 10, right: 10, left: 10, bottom: 30 }}
+            >
+              <XAxis
+                dataKey="percentile"
+                tick={{ fill: "rgba(255,255,255,0.3)", fontSize: 10 }}
+                axisLine={{ stroke: "rgba(255,255,255,0.1)" }}
+                tickLine={false}
+                interval={2}
+              />
+              <YAxis
+                domain={[logMin, logMax]}
+                tickFormatter={(v) => formatNumber(Math.pow(10, v))}
+                tick={{ fill: "rgba(255,255,255,0.3)", fontSize: 10 }}
+                axisLine={false}
+                tickLine={false}
+                width={35}
+              />
+              <Tooltip
+                content={({ active, payload }) => {
+                  if (active && payload && payload.length) {
+                    const d = payload[0].payload;
+                    return (
+                      <div className="bg-black/80 backdrop-blur-sm px-3 py-2 rounded-lg border border-white/10">
+                        <p className="text-white text-sm">
+                          P{d.percentile}: {d.label}
+                        </p>
+                      </div>
+                    );
+                  }
+                  return null;
+                }}
+                cursor={{ fill: "rgba(255,255,255,0.05)" }}
+              />
+              <Bar
+                dataKey="logValue"
+                fill={color}
+                radius={[2, 2, 0, 0]}
+                animationDuration={1000}
+                animationBegin={delay * 1000}
+              />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+        <div className="flex justify-between px-4 mt-2 text-xs text-white/50">
+          <div className="text-left">
+            <span className="text-white/30 block">min</span>
+            {formatNumber(minValue)}
           </div>
-          <div className="absolute left-8 top-10 bottom-10 w-8 flex flex-col justify-between">
-            <div className="h-1/4 border-b border-white/10" />
-            <div className="h-1/4 border-b border-white/10" />
-            <div className="h-1/4 border-b border-white/10" />
-            <div className="h-1/4 border-b border-white/10" />
+          <div className="text-center">
+            <span className="text-white/30 block">median</span>
+            {formatNumber(p50Value)}
           </div>
-          <div className="absolute inset-0 flex items-end justify-between gap-1 px-8 pb-10 pt-12 ml-8">
-            {data.map(([percent, value], i) => {
-              const logValue = Math.log10(Math.max(value, 0.1));
-              const heightPercent = Math.max(
-                5,
-                ((logValue - logMin) / logRange) * 100,
-              );
-
-              return (
-                <motion.div
-                  key={percent}
-                  initial={{ height: 0, opacity: 0 }}
-                  animate={{
-                    height: isInView ? `${heightPercent}%` : "0%",
-                    opacity: isInView ? 1 : 0,
-                  }}
-                  transition={{
-                    duration: 0.8,
-                    delay: isInView ? delay + i * 0.03 : 0,
-                    ease: [0.33, 1, 0.68, 1],
-                  }}
-                  className="flex-1 rounded-t-sm relative group cursor-pointer"
-                  style={{ background: color, minHeight: "2px" }}
-                >
-                  <div className="absolute -top-8 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity text-xs text-white/80 whitespace-nowrap bg-black/50 px-2 py-1 rounded z-10">
-                    {formatter(value)}
-                  </div>
-                </motion.div>
-              );
-            })}
-          </div>
-          <div className="absolute inset-x-0 bottom-3 flex justify-between px-10 ml-8">
-            <div className="text-left">
-              <span className="text-xs text-white/30 block">min</span>
-              <span className="text-xs text-white/50">{formatNumber(minValue)}</span>
-            </div>
-            <div className="text-center">
-              <span className="text-xs text-white/30 block">median</span>
-              <span className="text-xs text-white/50">{formatNumber(p50Value)}</span>
-            </div>
-            <div className="text-right">
-              <span className="text-xs text-white/30 block">max</span>
-              <span className="text-xs text-white/50">{formatNumber(p100Value)}</span>
-            </div>
+          <div className="text-right">
+            <span className="text-white/30 block">max</span>
+            {formatNumber(p100Value)}
           </div>
         </div>
       </div>
