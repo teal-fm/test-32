@@ -561,7 +561,7 @@ pub async fn calculate_global_wrapped_stats(
 
     let verified_minutes: f64 = sqlx::query(
         r#"
-        SELECT SUM(COALESCE(duration_ms, 210000)) / 1000.0 / 60.0 as total_minutes
+        SELECT (SUM(COALESCE(duration_ms, 210000)) / 1000.0 / 60.0)::DOUBLE PRECISION as total_minutes
         FROM user_plays
         WHERE EXTRACT(YEAR FROM played_at) = $1
           AND recording_mb_id IS NOT NULL
@@ -601,7 +601,7 @@ pub async fn calculate_global_wrapped_stats(
         SELECT
             user_did,
             COUNT(*) as play_count,
-            SUM(COALESCE(duration_ms, 210000)) / 1000.0 / 60.0 as total_minutes
+            (SUM(COALESCE(duration_ms, 210000)) / 1000.0 / 60.0)::DOUBLE PRECISION as total_minutes
         FROM user_plays
         WHERE EXTRACT(YEAR FROM played_at) = $1
         GROUP BY user_did
