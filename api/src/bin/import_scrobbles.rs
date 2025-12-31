@@ -1,6 +1,9 @@
 use anyhow::{anyhow, Context};
 use chrono::Datelike;
+use futures::stream::{self, StreamExt};
 use teal_wrapped_api::{atproto, db};
+
+const DEFAULT_PARALLELISM: usize = 20;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -12,27 +15,25 @@ async fn main() -> anyhow::Result<()> {
 
     // Parse command-line arguments
     let args: Vec<String> = std::env::args().collect();
-    if args.len() < 2 {
+
+    // Check if we should scrape all DIDs
+    let scrape_all = args.get(1).map(|s| s.as_str()) == Some("--all");
+
+    if !scrape_all && args.len() < 2 {
         eprintln!("Usage: {} <did> [year]", args[0]);
-        eprintln!("  <did>  - User DID to import scrobbles for");
-        eprintln!("  [year] - Optional year to import (if not specified, imports all scrobbles)");
-        return Err(anyhow!("Missing required argument: did"));
-    }
-
-    let did = &args[1];
-    let year: Option<u32> = if args.len() >= 3 {
-        Some(
-            args[2]
-                .parse()
-                .context("Failed to parse year. It must be a valid number.")?,
-        )
-    } else {
-        None
-    };
-
-    match year {
-        Some(y) => tracing::info!("Starting import for DID: {}, Year: {}", did, y),
-        None => tracing::info!("Starting import for DID: {} (all years)", did),
+        eprintln!("       {} --all [year] [parallelism]", args[0]);
+        eprintln!();
+        eprintln!("Arguments:");
+        eprintln!("  <did>         - User DID to import scrobbles for");
+        eprintln!("  --all         - Import scrobbles for all DIDs from relay");
+        eprintln!(
+            "  [year]        - Optional year to import (if not specified, imports all scrobbles)"
+        );
+        eprintln!(
+            "  [parallelism] - Number of concurrent imports when using --all (default: {})",
+            DEFAULT_PARALLELISM
+        );
+        return Err(anyhow!("Missing required argument"));
     }
 
     // Initialize the database
@@ -41,8 +42,91 @@ async fn main() -> anyhow::Result<()> {
         .context("Failed to initialize database")?;
     tracing::info!("Database connection established.");
 
+    if scrape_all {
+        let year: Option<u32> = if args.len() >= 3 {
+            Some(
+                args[2]
+                    .parse()
+                    .context("Failed to parse year. It must be a valid number.")?,
+            )
+        } else {
+            None
+        };
+
+        let parallelism: usize = if args.len() >= 4 {
+            args[3]
+                .parse()
+                .context("Failed to parse parallelism. It must be a valid number.")?
+        } else {
+            DEFAULT_PARALLELISM
+        };
+
+        tracing::info!("Fetching all DIDs from relay...");
+        let dids = atproto::fetch_all_dids()
+            .await
+            .context("Failed to fetch DIDs from relay")?;
+
+        tracing::info!(
+            "Found {} DIDs. Starting import with parallelism {}{}",
+            dids.len(),
+            parallelism,
+            match year {
+                Some(y) => format!(" for year {}", y),
+                None => " (all years)".to_string(),
+            }
+        );
+
+        let db_pool = std::sync::Arc::new(db_pool);
+        let mut success_count = 0;
+        let mut error_count = 0;
+
+        stream::iter(dids)
+            .map(|did| {
+                let db_pool = db_pool.clone();
+                async move { import_did(&db_pool, &did, year).await }
+            })
+            .buffer_unordered(parallelism)
+            .for_each(|result| async {
+                match result {
+                    Ok(_) => success_count += 1,
+                    Err(e) => {
+                        tracing::error!("Import failed: {}", e);
+                        error_count += 1;
+                    }
+                }
+            })
+            .await;
+
+        tracing::info!(
+            "Import complete. Success: {}, Errors: {}",
+            success_count,
+            error_count
+        );
+    } else {
+        let did = &args[1];
+        let year: Option<u32> = if args.len() >= 3 {
+            Some(
+                args[2]
+                    .parse()
+                    .context("Failed to parse year. It must be a valid number.")?,
+            )
+        } else {
+            None
+        };
+
+        import_did(&db_pool, did, year).await?;
+    }
+
+    Ok(())
+}
+
+async fn import_did(db_pool: &sqlx::PgPool, did: &str, year: Option<u32>) -> anyhow::Result<()> {
+    match year {
+        Some(y) => tracing::info!("Starting import for DID: {}, Year: {}", did, y),
+        None => tracing::info!("Starting import for DID: {} (all years)", did),
+    }
+
     // Fetch scrobbles from atproto (using dummy year since it's ignored)
-    tracing::info!("Fetching scrobbles...");
     let scrobbles = atproto::fetch_scrobbles(did, 2024)
         .await
         .context("Failed to fetch scrobbles")?;
@@ -98,7 +182,7 @@ async fn main() -> anyhow::Result<()> {
     );
 
     // Store the fetched scrobbles in the database
-    db::store_user_plays(&db_pool, did, &filtered_scrobbles)
+    db::store_user_plays(db_pool, did, &filtered_scrobbles)
         .await
         .context("Failed to store user plays in the database")?;
 

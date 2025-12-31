@@ -15,8 +15,8 @@ COPY lexicon/src ./lexicon/src
 # and /.sqlx
 COPY .sqlx .sqlx
 
-# build release binary
-RUN cargo build --release --package teal-wrapped-api
+# build release binaries
+RUN cargo build --release --workspace
 
 FROM debian:bookworm-slim
 
@@ -30,8 +30,9 @@ RUN apt-get update && apt-get install -y \
 
 WORKDIR /app
 
-# copy binary from builder
+# copy binaries from builder
 COPY --from=builder /build/target/release/teal-wrapped-api /app/server
+COPY --from=builder /build/target/release/import_scrobbles /app/import_scrobbles
 
 EXPOSE 3001
 

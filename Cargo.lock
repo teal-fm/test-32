@@ -3907,6 +3907,7 @@ dependencies = [
  "base64",
  "chrono",
  "dotenvy",
+ "futures",
  "image",
  "imageproc",
  "jacquard-common",
