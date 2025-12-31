@@ -1,4 +1,5 @@
 import StaggeredText from "@/components/StaggeredText";
+import Throbber from "@/components/Throbber";
 import {
   MeshGradient,
   Metaballs,
@@ -584,7 +585,8 @@ function WrappedPage() {
 
   if (loading) {
     return (
-      <div className="bg-[#0a0a0a] text-white min-h-screen flex items-center justify-center">
+      <div className="bg-[#0a0a0a] text-white min-h-screen flex flex-col items-center justify-center">
+        <Throbber />
         <p className="text-white/60">Loading your wrapped data...</p>
       </div>
     );
