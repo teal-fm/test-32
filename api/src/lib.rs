@@ -6,6 +6,7 @@ use axum::{
     routing::get,
     Router,
 };
+use futures::future::join_all;
 use serde::{Deserialize, Serialize};
 use sqlx::postgres::PgPool;
 use std::net::SocketAddr;
@@ -440,7 +441,11 @@ async fn get_global_wrapped(
     let top_users = stats
         .top_users
         .into_iter()
-        .map(|(did, plays, minutes)| TopUser { did, plays, minutes })
+        .map(|(did, plays, minutes)| TopUser {
+            did,
+            plays,
+            minutes,
+        })
         .collect();
 
     let spotify_client_id = std::env::var("SPOTIFY_CLIENT_ID").unwrap_or_default();
@@ -480,35 +485,42 @@ async fn get_global_wrapped(
         });
     }
 
-    let top_tracks: Vec<TopTrack> = stats
-        .top_tracks
-        .into_iter()
-        .map(|((title, artist), plays, metadata)| async move {
-            let mut release_mb_id = metadata.release_mb_id;
+    let top_tracks: Vec<TopTrack> = {
+        let futures: Vec<_> = stats
+            .top_tracks
+            .into_iter()
+            .map(|((title, artist), plays, metadata)| async move {
+                let mut release_mb_id = metadata.release_mb_id;
 
-            if release_mb_id.is_none() {
-                if let Some(ref recording_mb_id) = metadata.recording_mb_id {
-                    match lookup_release_from_recording(&state.http_client, recording_mb_id).await {
-                        Ok(Some(id)) => release_mb_id = Some(id),
-                        Ok(None) => tracing::debug!("no release found for recording {}", recording_mb_id),
-                        Err(e) => tracing::warn!("failed to lookup release for {}: {}", recording_mb_id, e),
+                if release_mb_id.is_none() {
+                    if let Some(ref recording_mb_id) = metadata.recording_mb_id {
+                        match lookup_release_from_recording(&state.http_client, recording_mb_id).await {
+                            Ok(Some(id)) => release_mb_id = Some(id),
+                            Ok(None) => {
+                                tracing::debug!("no release found for recording {}", recording_mb_id)
+                            }
+                            Err(e) => tracing::warn!(
+                                "failed to lookup release for {}: {}",
+                                recording_mb_id,
+                                e
+                            ),
+                        }
                     }
                 }
-            }
 
-            TopTrack {
-                title,
-                artist,
-                plays,
-                recording_mb_id: metadata.recording_mb_id,
-                release_name: metadata.release_name,
-                release_mb_id,
-            }
-        })
-        .collect::<Vec<_>>()
-        .await
-        .into_iter()
-        .collect();
+                TopTrack {
+                    title,
+                    artist,
+                    plays,
+                    recording_mb_id: metadata.recording_mb_id,
+                    release_name: metadata.release_name,
+                    release_mb_id,
+                }
+            })
+            .collect();
+
+        futures::future::join_all(futures).await
+    };
 
     let user_percentile = stats.user_percentile.map(|p| GlobalUserPercentile {
         total_minutes: p.total_minutes,
