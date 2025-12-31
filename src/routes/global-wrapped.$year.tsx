@@ -460,7 +460,7 @@ function GlobalWrapped() {
 
         <div className="relative z-10 px-8 max-w-[100vw] text-center">
           <motion.h1
-            className="text-[12rem] md:text-[16rem] lg:text-[20rem] font-black leading-none bg-gradient-to-br from-[#00d9ff] to-[#00ffaa] bg-clip-text text-transparent"
+            className="text-[8rem] md:text-[16rem] lg:text-[20rem] font-black leading-none bg-gradient-to-br from-[#00d9ff] to-[#00ffaa] bg-clip-text text-transparent"
             initial={{ opacity: 0, scale: 0.8 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ duration: 1.2, ease: [0.34, 0.8, 0.64, 1] }}
