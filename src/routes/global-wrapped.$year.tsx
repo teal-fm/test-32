@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import StaggeredText from "@/components/StaggeredText";
 import {
   Metaballs,
   MeshGradient,
@@ -6,6 +7,106 @@ import {
 } from "@paper-design/shaders-react";
 import { motion, useInView, useScroll, useTransform } from "framer-motion";
 import { useState, useEffect, useRef } from "react";
+
+const ALBUM_PLACEHOLDER =
+  "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='500' height='500' viewBox='0 0 500 500'%3E%3Crect fill='%231a1a2e' width='500' height='500'/%3E%3Ccircle cx='250' cy='250' r='150' fill='none' stroke='%23333' stroke-width='2'/%3E%3Ccircle cx='250' cy='250' r='50' fill='%23333'/%3E%3C/svg%3E";
+
+const mbidCache = new Map<string, string | null>();
+
+async function lookupReleaseMbId(
+  title: string,
+  artist: string,
+): Promise<string | null> {
+  const cacheKey = `${artist}::${title}`;
+  if (mbidCache.has(cacheKey)) {
+    return mbidCache.get(cacheKey) || null;
+  }
+
+  try {
+    const query = encodeURIComponent(
+      `recording:"${title}" AND artist:"${artist}"`,
+    );
+    const response = await fetch(
+      `https://musicbrainz.org/ws/2/recording?query=${query}&fmt=json&limit=1`,
+      {
+        headers: {
+          "User-Agent": "TealWrapped/1.0 (https://teal.fm)",
+        },
+      },
+    );
+
+    if (!response.ok) {
+      mbidCache.set(cacheKey, null);
+      return null;
+    }
+
+    const data = await response.json();
+    const recording = data.recordings?.[0];
+    const releaseMbId = recording?.releases?.[0]?.id;
+
+    mbidCache.set(cacheKey, releaseMbId || null);
+    return releaseMbId || null;
+  } catch (error) {
+    console.error("MusicBrainz lookup failed:", error);
+    mbidCache.set(cacheKey, null);
+    return null;
+  }
+}
+
+function AlbumArt({
+  releaseMbId,
+  title,
+  artist,
+  alt,
+  className,
+}: {
+  releaseMbId?: string;
+  title: string;
+  artist: string;
+  alt?: string;
+  className?: string;
+}) {
+  const [src, setSrc] = useState<string>(ALBUM_PLACEHOLDER);
+  const [hasError, setHasError] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function resolveAlbumArt() {
+      if (releaseMbId && releaseMbId !== "undefined") {
+        setSrc(
+          `https://coverartarchive.org/release/${releaseMbId}/front-500.jpg`,
+        );
+        return;
+      }
+
+      const foundMbId = await lookupReleaseMbId(title, artist);
+      if (cancelled) return;
+
+      if (foundMbId) {
+        setSrc(
+          `https://coverartarchive.org/release/${foundMbId}/front-500.jpg`,
+        );
+      } else {
+        setSrc(ALBUM_PLACEHOLDER);
+      }
+    }
+
+    resolveAlbumArt();
+    return () => {
+      cancelled = true;
+    };
+  }, [releaseMbId, title, artist]);
+
+  return (
+    <img
+      src={hasError ? ALBUM_PLACEHOLDER : src}
+      alt={alt || title}
+      className={className}
+      onError={() => setHasError(true)}
+    />
+  );
+}
 
 interface GlobalWrappedData {
   year: number;
@@ -24,6 +125,9 @@ interface GlobalWrappedData {
     title: string;
     artist: string;
     plays: number;
+    recording_mb_id?: string;
+    release_mb_id?: string;
+    release_name?: string;
   }>;
   distribution: {
     minutes_percentiles: Array<[number, number]>;
@@ -356,115 +460,465 @@ function GlobalWrapped() {
         </div>
       </section>
 
-      {/* Top Artists */}
+      {/* Top Artist #1 */}
       <section className="min-h-screen flex items-center px-8 md:px-16 lg:px-24 relative overflow-visible">
-        <div className="absolute inset-0 opacity-20">
+        <div className="absolute inset-0 opacity-30">
           <Metaballs
-            colors={["#ff0099", "#00ffaa"]}
+            colors={["#ff0099", "#9900ff"]}
             count={4}
-            size={0.7}
-            speed={0.18}
+            size={0.8}
+            speed={0.2}
           />
         </div>
         <ParallaxBlob
-          className="absolute bottom-40 left-0 w-80 h-80 bg-[#ff0099]/10 rounded-full blur-[120px]"
-          speed={0.3}
+          className="absolute bottom-40 right-0 w-[32rem] h-[32rem] bg-[#ff0099]/10 rounded-full blur-[140px]"
+          speed={0.4}
         />
-
-        <div className="max-w-6xl mx-auto w-full relative z-10">
-          <FadeUpSection>
-            <p className="text-xs uppercase tracking-[0.3em] text-white/40 mb-16 text-center">
-              Most Played Artists
-            </p>
-          </FadeUpSection>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6">
-            {data.top_artists.slice(0, 10).map((artist, i) => (
-              <FadeUpSection key={artist.name} delay={0.1 + i * 0.08}>
-                <div className="bg-white/5 backdrop-blur-sm rounded-2xl p-6 border border-white/10">
-                  <p className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white/30 mb-4">
-                    #{i + 1}
+        <div className="max-w-7xl mx-auto w-full relative z-10">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-16 items-center">
+            <FadeUpSection>
+              <div>
+                <p className="text-xs uppercase tracking-[0.3em] text-white/40 mb-6 lg:mb-8">
+                  Most Played Artist
+                </p>
+                {data.top_artists[0]?.mb_id && (
+                  <AlbumArt
+                    releaseMbId={data.top_artists[0].mb_id}
+                    title={data.top_artists[0].name}
+                    artist={data.top_artists[0].name}
+                    className="mb-6 lg:mb-8 rounded-2xl border border-white/10 shadow-lg w-full max-w-sm lg:w-4/5 brightness-90"
+                  />
+                )}
+                <StaggeredText
+                  text={data.top_artists[0]?.name || "Unknown"}
+                  className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl xl:text-8xl font-bold text-white leading-[0.9] mb-8 lg:mb-12"
+                  offset={40}
+                  delay={0.2}
+                  duration={0.2}
+                  staggerDelay={0.15}
+                  once={true}
+                  as="h2"
+                />
+              </div>
+            </FadeUpSection>
+            <div className="space-y-6 lg:space-y-8">
+              <FadeUpSection delay={0.2}>
+                <div className="border-l-4 border-[#00d9ff] pl-6 lg:pl-8">
+                  <AnimatedNumber
+                    value={Number((data.top_artists[0]?.minutes || 0) / 60)}
+                    duration={2}
+                    className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold bg-gradient-to-r from-[#00d9ff] to-[#0066ff] bg-clip-text text-transparent"
+                  />
+                  <p className="text-lg sm:text-xl text-white/60 mt-2">
+                    hours played
                   </p>
-                  <p className="text-xl sm:text-2xl md:text-3xl text-white font-semibold mb-4 leading-tight">
-                    {artist.name}
-                  </p>
-                  <div className="space-y-3">
-                    <div>
-                      <p className="text-xs uppercase tracking-wider text-white/40 mb-1">
-                        plays
-                      </p>
-                      <AnimatedNumber
-                        value={artist.plays}
-                        duration={1.5}
-                        className="text-2xl sm:text-3xl lg:text-4xl font-bold bg-gradient-to-r from-[#00d9ff] to-[#0066ff] bg-clip-text text-transparent"
-                      />
-                    </div>
-                    <div>
-                      <p className="text-xs uppercase tracking-wider text-white/40 mb-1">
-                        hours
-                      </p>
-                      <AnimatedNumber
-                        value={Number((artist.minutes / 60).toFixed(1))}
-                        duration={1.5}
-                        className="text-2xl sm:text-3xl lg:text-4xl font-bold bg-gradient-to-r from-[#ff0099] to-[#ff6b6b] bg-clip-text text-transparent"
-                      />
-                    </div>
-                  </div>
                 </div>
               </FadeUpSection>
-            ))}
+              <FadeUpSection delay={0.3}>
+                <div className="border-l-4 border-[#ff0099] pl-6 lg:pl-8">
+                  <AnimatedNumber
+                    value={data.top_artists[0]?.plays || 0}
+                    duration={2}
+                    className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold bg-gradient-to-r from-[#ff0099] to-[#9900ff] bg-clip-text text-transparent"
+                  />
+                  <p className="text-lg sm:text-xl text-white/60 mt-2">plays</p>
+                </div>
+              </FadeUpSection>
+              <FadeUpSection delay={0.4}>
+                <div className="pl-6 lg:pl-8 pt-6 lg:pt-8 border-t border-white/10">
+                  <p className="text-sm text-white/40 uppercase tracking-widest mb-3">
+                    Global Favorite
+                  </p>
+                  <p className="text-lg sm:text-xl text-white/60 leading-relaxed">
+                    The most listened to artist across all of teal.fm
+                  </p>
+                </div>
+              </FadeUpSection>
+            </div>
           </div>
         </div>
       </section>
 
-      {/* Top Tracks */}
-      <section className="min-h-screen flex items-center px-8 md:px-16 lg:px-24 py-24 relative overflow-visible">
-        <div className="absolute inset-0 opacity-20">
-          <SimplexNoise
-            colors={["#00d9ff", "#ff0099"]}
-            softness={0.7}
-            speed={0.15}
+      {/* Artists #2 and #3 */}
+      {(data.top_artists[1] || data.top_artists[2]) && (
+        <section className="min-h-screen flex items-center px-8 md:px-16 lg:px-24 py-24 relative overflow-visible">
+          <div className="absolute inset-0 opacity-30">
+            <Metaballs
+              colors={["#00d9ff", "#9900ff"]}
+              count={4}
+              size={0.8}
+              speed={0.2}
+            />
+          </div>
+          <ParallaxBlob
+            className="absolute top-1/3 left-1/4 w-[32rem] h-[32rem] bg-[#00d9ff]/10 rounded-full blur-[140px]"
+            speed={0.4}
           />
-        </div>
-        <ParallaxBlob
-          className="absolute top-20 right-0 w-96 h-96 bg-[#0066ff]/10 rounded-full blur-[140px]"
-          speed={0.3}
-        />
+          <div className="max-w-7xl mx-auto w-full relative z-10">
+            <FadeUpSection>
+              <p className="text-sm uppercase tracking-[0.3em] text-white/40 mb-12 text-center">
+                The Runners Up
+              </p>
+            </FadeUpSection>
 
-        <div className="max-w-5xl mx-auto w-full relative z-10">
-          <FadeUpSection>
-            <p className="text-xs uppercase tracking-[0.3em] text-white/40 mb-16 text-center">
-              Most Played Tracks
-            </p>
-          </FadeUpSection>
-
-          <div className="space-y-4">
-            {data.top_tracks.map((track, i) => (
-              <FadeUpSection key={`${track.title}-${track.artist}`} delay={i * 0.08}>
-                <div className="flex items-start gap-4 sm:gap-6 md:gap-8 border-b border-white/10 pb-6 relative">
-                  <p className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white/30 z-20 pl-1 min-w-[3rem] sm:min-w-[4rem]">
-                    {i + 1}
-                  </p>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xl sm:text-2xl md:text-3xl lg:text-4xl text-white font-medium mb-2 leading-tight">
-                      {track.title}
-                    </p>
-                    <p className="text-base sm:text-lg md:text-xl text-white/50">
-                      {track.artist}
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-2xl sm:text-3xl md:text-4xl font-bold">
-                      <AnimatedNumber value={track.plays} duration={1.5} />
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12">
+              {data.top_artists[1] && (
+                <FadeUpSection delay={0.2}>
+                  <div className="bg-white/5 backdrop-blur-sm rounded-3xl p-6 lg:p-8 border border-white/10">
+                    {data.top_artists[1].mb_id && (
+                      <AlbumArt
+                        releaseMbId={data.top_artists[1].mb_id}
+                        title={data.top_artists[1].name}
+                        artist={data.top_artists[1].name}
+                        className="w-full aspect-square object-cover rounded-2xl mb-6 brightness-90"
+                      />
+                    )}
+                    <div className="flex items-baseline gap-3 mb-4">
+                      <span className="text-4xl font-bold text-white/30">
+                        2
+                      </span>
+                      <h3 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-white leading-tight">
+                        {data.top_artists[1].name}
+                      </h3>
                     </div>
-                    <p className="text-sm text-white/40 mt-1">plays</p>
+                    <div className="space-y-4">
+                      <div className="flex justify-between items-baseline border-b border-white/10 pb-3">
+                        <span className="text-sm text-white/40">hours</span>
+                        <AnimatedNumber
+                          value={Number((data.top_artists[1].minutes / 60).toFixed(1))}
+                          className="text-2xl font-bold bg-gradient-to-r from-[#00ffaa] to-[#00ff66] bg-clip-text text-transparent"
+                        />
+                      </div>
+                      <div className="flex justify-between items-baseline border-b border-white/10 pb-3">
+                        <span className="text-sm text-white/40">plays</span>
+                        <span className="text-xl text-white/80">
+                          <AnimatedNumber value={data.top_artists[1].plays} />
+                        </span>
+                      </div>
+                    </div>
                   </div>
+                </FadeUpSection>
+              )}
+
+              {data.top_artists[2] && (
+                <FadeUpSection delay={0.3}>
+                  <div className="bg-white/5 backdrop-blur-sm rounded-3xl p-6 lg:p-8 border border-white/10">
+                    {data.top_artists[2].mb_id && (
+                      <AlbumArt
+                        releaseMbId={data.top_artists[2].mb_id}
+                        title={data.top_artists[2].name}
+                        artist={data.top_artists[2].name}
+                        className="w-full aspect-square object-cover rounded-2xl mb-6 brightness-90"
+                      />
+                    )}
+                    <div className="flex items-baseline gap-3 mb-4">
+                      <span className="text-4xl font-bold text-white/30">
+                        3
+                      </span>
+                      <h3 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-white leading-tight">
+                        {data.top_artists[2].name}
+                      </h3>
+                    </div>
+                    <div className="space-y-4">
+                      <div className="flex justify-between items-baseline border-b border-white/10 pb-3">
+                        <span className="text-sm text-white/40">hours</span>
+                        <AnimatedNumber
+                          value={Number((data.top_artists[2].minutes / 60).toFixed(1))}
+                          className="text-2xl font-bold bg-gradient-to-r from-[#00ffaa] to-[#00ff66] bg-clip-text text-transparent"
+                        />
+                      </div>
+                      <div className="flex justify-between items-baseline border-b border-white/10 pb-3">
+                        <span className="text-sm text-white/40">plays</span>
+                        <span className="text-xl text-white/80">
+                          <AnimatedNumber value={data.top_artists[2].plays} />
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </FadeUpSection>
+              )}
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* Rest of Top Artists */}
+      {data.top_artists.length > 3 && (
+        <section className="max-h-screen mt-40 flex items-center px-8 md:px-16 lg:px-24 py-24 pb-32 relative overflow-visible">
+          <div className="absolute inset-0 opacity-20">
+            <SimplexNoise
+              colors={["#00d9ff", "#9900ff"]}
+              softness={0.8}
+              speed={0.15}
+            />
+          </div>
+          <ParallaxBlob
+            className="absolute top-1/4 right-0 w-[36rem] h-[36rem] bg-[#0066ff]/10 rounded-full blur-[150px]"
+            speed={0.35}
+          />
+          <div className="max-w-5xl mx-auto w-full relative z-10">
+            <FadeUpSection>
+              <p className="text-sm uppercase tracking-[0.3em] text-white/40 mb-16">
+                The Rest of Top Artists
+              </p>
+            </FadeUpSection>
+            <div className="space-y-6">
+              {data.top_artists.slice(3, 10).map((item, idx) => (
+                <FadeUpSection key={idx} delay={idx * 0.1}>
+                  <div className="flex items-start gap-4 sm:gap-6 md:gap-8 border-b border-white/10 pb-6 relative">
+                    <p className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white z-20 pl-1 text-shadow-md min-w-[3rem] sm:min-w-[4rem]">
+                      {idx + 4}
+                    </p>
+                    <div className="flex-1 min-w-0">
+                      <StaggeredText
+                        text={item.name}
+                        className="text-xl sm:text-2xl md:text-4xl lg:text-5xl text-white font-medium mb-2"
+                        offset={20}
+                        delay={0.1 + (idx + 3) * 0.1}
+                        duration={0.08}
+                        staggerDelay={0.06}
+                        once={true}
+                        as="h3"
+                      />
+                      <div className="flex justify-between items-baseline">
+                        <span className="text-base sm:text-lg text-white/50">
+                          <AnimatedNumber value={item.plays} duration={1.5} /> plays
+                        </span>
+                        <span className="text-base sm:text-lg text-white/50">
+                          {Number((item.minutes / 60).toFixed(1))} hrs
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </FadeUpSection>
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* Top Track #1 */}
+      {data.top_tracks[0] && (
+        <section className="min-h-screen flex items-center px-8 md:px-16 lg:px-24 relative overflow-visible">
+          <div className="absolute inset-0 opacity-30">
+            <Metaballs
+              colors={["#00d9ff", "#00ffaa"]}
+              count={4}
+              size={0.8}
+              speed={0.2}
+            />
+          </div>
+          <ParallaxBlob
+            className="absolute bottom-40 right-0 w-[32rem] h-[32rem] bg-[#00d9ff]/10 rounded-full blur-[140px]"
+            speed={0.4}
+          />
+
+          <div className="max-w-7xl mx-auto w-full relative z-10">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-16 items-center">
+              <FadeUpSection>
+                <div>
+                  <p className="text-xs uppercase tracking-[0.3em] text-white/40 mb-6 lg:mb-8">
+                    Most Played Track
+                  </p>
+                  {data.top_tracks[0].release_mb_id && (
+                    <AlbumArt
+                      releaseMbId={data.top_tracks[0].release_mb_id}
+                      title={data.top_tracks[0].title}
+                      artist={data.top_tracks[0].artist}
+                      className="mb-6 lg:mb-8 rounded-2xl border border-white/10 shadow-lg w-full max-w-sm lg:w-4/5 brightness-90"
+                    />
+                  )}
+                  <StaggeredText
+                    text={data.top_tracks[0].title}
+                    className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl xl:text-8xl font-bold text-white leading-[0.9] mb-8 lg:mb-12"
+                    offset={40}
+                    delay={0.2}
+                    duration={0.2}
+                    staggerDelay={0.15}
+                    once={true}
+                    as="h2"
+                  />
+                  <p className="text-xl sm:text-2xl md:text-3xl text-white/50 leading-relaxed max-w-2xl">
+                    {data.top_tracks[0].artist}
+                  </p>
                 </div>
               </FadeUpSection>
-            ))}
+              <div className="space-y-6 lg:space-y-8">
+                <FadeUpSection delay={0.2}>
+                  <div className="border-l-4 border-[#00d9ff] pl-6 lg:pl-8">
+                    <AnimatedNumber
+                      value={data.top_tracks[0].plays}
+                      duration={2}
+                      className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold bg-gradient-to-r from-[#00d9ff] to-[#0066ff] bg-clip-text text-transparent"
+                    />
+                    <p className="text-lg sm:text-xl text-white/60 mt-2">
+                      total plays
+                    </p>
+                  </div>
+                </FadeUpSection>
+                <FadeUpSection delay={0.3}>
+                  <div className="pl-6 lg:pl-8 pt-6 lg:pt-8 border-t border-white/10">
+                    <p className="text-sm text-white/40 uppercase tracking-widest mb-3">
+                      Global Favorite
+                    </p>
+                    <p className="text-lg sm:text-xl text-white/60 leading-relaxed">
+                      The most played track across all of teal.fm
+                    </p>
+                  </div>
+                </FadeUpSection>
+              </div>
+            </div>
           </div>
-        </div>
-      </section>
+        </section>
+      )}
+
+      {/* Tracks #2 and #3 */}
+      {(data.top_tracks[1] || data.top_tracks[2]) && (
+        <section className="min-h-screen flex items-center px-8 md:px-16 lg:px-24 py-24 relative overflow-visible">
+          <div className="absolute inset-0 opacity-30">
+            <Metaballs
+              colors={["#00d9ff", "#00ffaa"]}
+              count={4}
+              size={0.8}
+              speed={0.2}
+            />
+          </div>
+          <ParallaxBlob
+            className="absolute top-1/3 left-1/4 w-[32rem] h-[32rem] bg-[#00d9ff]/10 rounded-full blur-[140px]"
+            speed={0.4}
+          />
+          <div className="max-w-7xl mx-auto w-full relative z-10">
+            <FadeUpSection>
+              <p className="text-sm uppercase tracking-[0.3em] text-white/40 mb-12 text-center">
+                The Runners Up
+              </p>
+            </FadeUpSection>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12">
+              {data.top_tracks[1] && (
+                <FadeUpSection delay={0.2}>
+                  <div className="bg-white/5 backdrop-blur-sm rounded-3xl p-6 lg:p-8 border border-white/10">
+                    {data.top_tracks[1].release_mb_id && (
+                      <AlbumArt
+                        releaseMbId={data.top_tracks[1].release_mb_id}
+                        title={data.top_tracks[1].title}
+                        artist={data.top_tracks[1].artist}
+                        className="w-full aspect-square object-cover rounded-2xl mb-6 brightness-90"
+                      />
+                    )}
+                    <div className="flex items-baseline gap-3 mb-4">
+                      <span className="text-4xl font-bold text-white/30">
+                        2
+                      </span>
+                      <h3 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-white leading-tight">
+                        {data.top_tracks[1].title}
+                      </h3>
+                    </div>
+                    <div className="space-y-4">
+                      <div className="flex justify-between items-baseline border-b border-white/10 pb-3">
+                        <span className="text-sm text-white/40">plays</span>
+                        <span className="text-xl text-white/80">
+                          <AnimatedNumber value={data.top_tracks[1].plays} />
+                        </span>
+                      </div>
+                      <div className="pt-2">
+                        <p className="text-xs text-white/40 uppercase tracking-wider mb-2">
+                          {data.top_tracks[1].artist}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </FadeUpSection>
+              )}
+
+              {data.top_tracks[2] && (
+                <FadeUpSection delay={0.3}>
+                  <div className="bg-white/5 backdrop-blur-sm rounded-3xl p-6 lg:p-8 border border-white/10">
+                    {data.top_tracks[2].release_mb_id && (
+                      <AlbumArt
+                        releaseMbId={data.top_tracks[2].release_mb_id}
+                        title={data.top_tracks[2].title}
+                        artist={data.top_tracks[2].artist}
+                        className="w-full aspect-square object-cover rounded-2xl mb-6 brightness-90"
+                      />
+                    )}
+                    <div className="flex items-baseline gap-3 mb-4">
+                      <span className="text-4xl font-bold text-white/30">
+                        3
+                      </span>
+                      <h3 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-white leading-tight">
+                        {data.top_tracks[2].title}
+                      </h3>
+                    </div>
+                    <div className="space-y-4">
+                      <div className="flex justify-between items-baseline border-b border-white/10 pb-3">
+                        <span className="text-sm text-white/40">plays</span>
+                        <span className="text-xl text-white/80">
+                          <AnimatedNumber value={data.top_tracks[2].plays} />
+                        </span>
+                      </div>
+                      <div className="pt-2">
+                        <p className="text-xs text-white/40 uppercase tracking-wider mb-2">
+                          {data.top_tracks[2].artist}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </FadeUpSection>
+              )}
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* Rest of Top Tracks */}
+      {data.top_tracks.length > 3 && (
+        <section className="max-h-screen mt-40 flex items-center px-8 md:px-16 lg:px-24 py-24 pb-32 relative overflow-visible">
+          <div className="absolute inset-0 opacity-20">
+            <SimplexNoise
+              colors={["#00d9ff", "#9900ff"]}
+              softness={0.8}
+              speed={0.15}
+            />
+          </div>
+          <ParallaxBlob
+            className="absolute top-1/4 right-0 w-[36rem] h-[36rem] bg-[#0066ff]/10 rounded-full blur-[150px]"
+            speed={0.35}
+          />
+          <div className="max-w-5xl mx-auto w-full relative z-10">
+            <FadeUpSection>
+              <p className="text-xs uppercase tracking-[0.3em] text-white/40 mb-16">
+                The Rest of Top Tracks
+              </p>
+            </FadeUpSection>
+            <div className="space-y-4">
+              {data.top_tracks.slice(3, 10).map((track, i) => (
+                <FadeUpSection key={`${track.title}-${track.artist}`} delay={i * 0.08}>
+                  <div className="flex items-start gap-4 sm:gap-6 md:gap-8 border-b border-white/10 pb-6 relative">
+                    <p className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white/30 z-20 pl-1 text-shadow-md min-w-[3rem] sm:min-w-[4rem]">
+                      {i + 4}
+                    </p>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xl sm:text-2xl md:text-3xl lg:text-4xl text-white font-medium mb-2 leading-tight">
+                        {track.title}
+                      </p>
+                      <p className="text-base sm:text-lg md:text-xl text-white/50">
+                        {track.artist}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-2xl sm:text-3xl md:text-4xl font-bold">
+                        <AnimatedNumber value={track.plays} duration={1.5} />
+                      </div>
+                      <p className="text-sm text-white/40 mt-1">plays</p>
+                    </div>
+                  </div>
+                </FadeUpSection>
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* Distribution Charts */}
       <section className="min-h-screen flex items-center px-8 md:px-16 lg:px-24 py-24 relative overflow-visible">
