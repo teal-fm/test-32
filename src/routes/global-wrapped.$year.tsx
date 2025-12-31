@@ -128,6 +128,7 @@ interface GlobalWrappedData {
     plays: number;
     minutes: number;
     mb_id?: string;
+    image_url?: string;
   }>;
   top_tracks: Array<{
     title: string;
@@ -527,11 +528,10 @@ function GlobalWrapped() {
                 <p className="text-xs uppercase tracking-[0.3em] text-white/40 mb-6 lg:mb-8">
                   Most Played Artist
                 </p>
-                {data.top_artists[0]?.mb_id && (
-                  <AlbumArt
-                    releaseMbId={data.top_artists[0].mb_id}
-                    title={data.top_artists[0].name}
-                    artist={data.top_artists[0].name}
+                {data.top_artists[0]?.image_url && (
+                  <img
+                    src={data.top_artists[0]?.image_url}
+                    alt={data.top_artists[0]?.name}
                     className="mb-6 lg:mb-8 rounded-2xl border border-white/10 shadow-lg w-full max-w-sm lg:w-4/5 brightness-90"
                   />
                 )}
@@ -611,11 +611,10 @@ function GlobalWrapped() {
               {data.top_artists[1] && (
                 <FadeUpSection delay={0.2}>
                   <div className="bg-white/5 backdrop-blur-sm rounded-3xl p-6 lg:p-8 border border-white/10">
-                    {data.top_artists[1].mb_id && (
-                      <AlbumArt
-                        releaseMbId={data.top_artists[1].mb_id}
-                        title={data.top_artists[1].name}
-                        artist={data.top_artists[1].name}
+                    {data.top_artists[1].image_url && (
+                      <img
+                        src={data.top_artists[1].image_url}
+                        alt={data.top_artists[1].name}
                         className="w-full aspect-square object-cover rounded-2xl mb-6 brightness-90"
                       />
                     )}
@@ -631,7 +630,9 @@ function GlobalWrapped() {
                       <div className="flex justify-between items-baseline border-b border-white/10 pb-3">
                         <span className="text-sm text-white/40">hours</span>
                         <AnimatedNumber
-                          value={Number((data.top_artists[1].minutes / 60).toFixed(1))}
+                          value={Number(
+                            (data.top_artists[1].minutes / 60).toFixed(1),
+                          )}
                           className="text-2xl font-bold bg-gradient-to-r from-[#00ffaa] to-[#00ff66] bg-clip-text text-transparent"
                         />
                       </div>
@@ -649,11 +650,10 @@ function GlobalWrapped() {
               {data.top_artists[2] && (
                 <FadeUpSection delay={0.3}>
                   <div className="bg-white/5 backdrop-blur-sm rounded-3xl p-6 lg:p-8 border border-white/10">
-                    {data.top_artists[2].mb_id && (
-                      <AlbumArt
-                        releaseMbId={data.top_artists[2].mb_id}
-                        title={data.top_artists[2].name}
-                        artist={data.top_artists[2].name}
+                    {data.top_artists[2].image_url && (
+                      <img
+                        src={data.top_artists[2].image_url}
+                        alt={data.top_artists[2].name}
                         className="w-full aspect-square object-cover rounded-2xl mb-6 brightness-90"
                       />
                     )}
@@ -669,7 +669,9 @@ function GlobalWrapped() {
                       <div className="flex justify-between items-baseline border-b border-white/10 pb-3">
                         <span className="text-sm text-white/40">hours</span>
                         <AnimatedNumber
-                          value={Number((data.top_artists[2].minutes / 60).toFixed(1))}
+                          value={Number(
+                            (data.top_artists[2].minutes / 60).toFixed(1),
+                          )}
                           className="text-2xl font-bold bg-gradient-to-r from-[#00ffaa] to-[#00ff66] bg-clip-text text-transparent"
                         />
                       </div>
@@ -728,7 +730,8 @@ function GlobalWrapped() {
                       />
                       <div className="flex justify-between items-baseline">
                         <span className="text-base sm:text-lg text-white/50">
-                          <AnimatedNumber value={item.plays} duration={1.5} /> plays
+                          <AnimatedNumber value={item.plays} duration={1.5} />{" "}
+                          plays
                         </span>
                         <span className="text-base sm:text-lg text-white/50">
                           {Number((item.minutes / 60).toFixed(1))} hrs
@@ -939,7 +942,10 @@ function GlobalWrapped() {
             </FadeUpSection>
             <div className="space-y-4">
               {data.top_tracks.slice(3, 10).map((track, i) => (
-                <FadeUpSection key={`${track.title}-${track.artist}`} delay={i * 0.08}>
+                <FadeUpSection
+                  key={`${track.title}-${track.artist}`}
+                  delay={i * 0.08}
+                >
                   <div className="flex items-start gap-4 sm:gap-6 md:gap-8 border-b border-white/10 pb-6 relative">
                     <p className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white/30 z-20 pl-1 text-shadow-md min-w-[3rem] sm:min-w-[4rem]">
                       {i + 4}
@@ -983,9 +989,7 @@ function GlobalWrapped() {
 
         <div className="max-w-6xl mx-auto w-full relative z-10">
           <FadeUpSection>
-            <p className="text-xs uppercase tracking-[0.3em] text-white/40 mb-16 text-center">
-              How Listening Is Distributed
-            </p>
+            <p className="mb-16 text-4xl text-center">Distributed listening.</p>
           </FadeUpSection>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-8 mb-12">
@@ -1049,7 +1053,8 @@ function GlobalWrapped() {
               verified hours of music
             </p>
             <p className="text-xl sm:text-2xl text-white/50 max-w-2xl mx-auto leading-relaxed">
-              From tracks identified with MusicBrainz data. The soundtrack to a year of discovery.
+              From tracks identified with MusicBrainz data. The soundtrack to a
+              year of discovery.
             </p>
           </FadeUpSection>
         </div>
