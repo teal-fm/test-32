@@ -40,6 +40,13 @@ body {
   color: white;
 }
 
+/* firefox-specific fix for letter-spacing in canvas rendering */
+@-moz-document url-prefix() {
+  .share-card {
+    letter-spacing: 0.025em !important;
+  }
+}
+
 code {
   font-family:
     "SF Mono", "JetBrains Mono", source-code-pro, Menlo, Monaco, Consolas,

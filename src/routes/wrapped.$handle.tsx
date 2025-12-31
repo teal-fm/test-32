@@ -558,6 +558,37 @@ function WrappedPage() {
 
     setGeneratingImage(true);
     try {
+      // ensure fonts are loaded before capturing
+      await document.fonts.ready;
+
+      // detect firefox
+      const isFirefox = navigator.userAgent.toLowerCase().includes("firefox");
+
+      // firefox has letter-spacing rendering issues in html2canvas
+      // temporarily apply tracking-widest (0.1em) to all elements
+      const originalLetterSpacing: Map<HTMLElement, string> = new Map();
+      if (isFirefox && ref.current) {
+        const allElements = ref.current.querySelectorAll("*");
+        allElements.forEach((el: Element) => {
+          if (el instanceof HTMLElement) {
+            const computedStyle = window.getComputedStyle(el);
+            if (
+              computedStyle.letterSpacing &&
+              computedStyle.letterSpacing !== "normal"
+            ) {
+              originalLetterSpacing.set(el, el.style.letterSpacing);
+              el.style.letterSpacing = "0.1em"; // tracking-widest
+            }
+          }
+        });
+        console.log(
+          "Applied tracking-widest to",
+          originalLetterSpacing.size,
+          "elements for firefox",
+        );
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      }
+
       const canvas = await html2canvas(ref.current, {
         backgroundColor: "#0a0a0a",
         scale: 2,
@@ -565,6 +596,14 @@ function WrappedPage() {
         useCORS: true,
         allowTaint: false,
       });
+
+      // restore original letter-spacing
+      if (isFirefox) {
+        originalLetterSpacing.forEach((spacing, el) => {
+          el.style.letterSpacing = spacing;
+        });
+        console.log("Restored original letter-spacing");
+      }
 
       const blob = await new Promise<Blob>((resolve) => {
         canvas.toBlob((blob) => resolve(blob!), "image/png");
@@ -2012,7 +2051,7 @@ function WrappedPage() {
       </section>
 
       {/* Listening Streaks */}
-      <section className="min-h-[200vh] relative overflow-visible">
+      <section className="min-h-[265vh] lg:min-h-[200vh] relative overflow-visible">
         <div className="absolute inset-0 opacity-20">
           <SimplexNoise
             colors={["#00ff66", "#00ffaa"]}
@@ -2024,7 +2063,7 @@ function WrappedPage() {
           className="absolute top-1/2 right-1/4 w-[36rem] h-[36rem] bg-[#00ff66]/10 rounded-full blur-[140px]"
           speed={0.28}
         />
-        <div className="sticky top-0 min-h-screen flex items-center justify-center px-8 py-24">
+        <div className="sticky top-0 min-h-screen flex items-start justify-center px-8 py-12 lg:py-24 lg:items-center">
           <div className="max-w-6xl mx-auto w-full relative z-10">
             <FadeUpSection>
               <div className="text-center mb-16">
@@ -2140,7 +2179,7 @@ function WrappedPage() {
                   </div>
                 </div>
                 {/* Mobile: vertical scrolling layout */}
-                <div className="lg:hidden overflow-x-auto flex justify-center">
+                <div className="lg:hidden overflow-x-auto pb-4 flex justify-center">
                   <div className="inline-flex flex-row gap-1.5">
                     {/* Month labels column */}
                     <div className="flex flex-col gap-1.5">
@@ -2168,7 +2207,7 @@ function WrappedPage() {
                         return (
                           <div
                             key={weekIdx}
-                            className="h-3.5 text-[10px] text-white/30 flex items-center pr-2"
+                            className="h-6 text-[20px] text-white/30 flex items-center pr-2"
                           >
                             {isFirstWeekOfMonth &&
                               monthNames[firstDate.getMonth()]}
@@ -2515,6 +2554,9 @@ function WrappedPage() {
                 Share Overall
               </button>
             </div>
+            <p className="text-xs text-white/40 text-center mt-4">
+              Recommend Chromium-based browsers for the best exporting quality
+            </p>
           </FadeUpSection>
         </div>
       </section>
@@ -2531,7 +2573,7 @@ function WrappedPage() {
               <h3 className="text-white text-xl mb-4">Top Stats (1080x1080)</h3>
               <div
                 ref={topStatsCardRef}
-                className="w-[1080px] h-[1080px] bg-[#0a0a0a] p-16 flex flex-col justify-between"
+                className="share-card w-[1080px] h-[1080px] bg-[#0a0a0a] p-16 flex flex-col justify-between"
                 style={{
                   transform: "scale(0.5)",
                   transformOrigin: "top left",
@@ -2617,7 +2659,7 @@ function WrappedPage() {
               </h3>
               <div
                 ref={topArtistCardRef}
-                className="w-[1080px] h-[1080px] bg-[#0a0a0a] p-16 flex flex-col"
+                className="share-card w-[1080px] h-[1080px] bg-[#0a0a0a] p-16 flex flex-col"
                 style={{
                   transform: "scale(0.5)",
                   transformOrigin: "top left",
@@ -2688,7 +2730,7 @@ function WrappedPage() {
               <h3 className="text-white text-xl mb-4">Activity (1920x1080)</h3>
               <div
                 ref={activityCardRef}
-                className="w-[1920px] h-[1080px] bg-[#0a0a0a] p-16 flex flex-col"
+                className="share-card w-[1920px] h-[1080px] bg-[#0a0a0a] p-16 flex flex-col"
                 style={{
                   transform: "scale(0.4)",
                   transformOrigin: "top left",
@@ -2967,7 +3009,7 @@ function WrappedPage() {
               </h3>
               <div
                 ref={overallCardRef}
-                className="w-[1080px] h-[1440px] bg-[#0a0a0a] p-16 flex flex-col relative"
+                className="share-card w-[1080px] h-[1440px] bg-[#0a0a0a] p-16 flex flex-col relative"
                 style={{
                   transform: "scale(0.5)",
                   transformOrigin: "top left",
@@ -3032,7 +3074,7 @@ function WrappedPage() {
                               {idx + 1}.
                             </span>
                             <div>
-                              <p className="text-4xl font-medium text-white">
+                              <p className="text-4xl font-medium text-white line-clamp-1">
                                 {artist.name}
                               </p>
                               <p className="text-xl text-white/50">
@@ -3055,7 +3097,7 @@ function WrappedPage() {
                               {idx + 1}.
                             </span>
                             <div>
-                              <p className="text-4xl font-medium text-white">
+                              <p className="text-4xl font-medium text-white line-clamp-1">
                                 {t.title}
                               </p>
                               <p className="text-xl text-white/50">
