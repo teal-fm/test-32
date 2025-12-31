@@ -91,13 +91,6 @@ function Home() {
             <p className="text-lg sm:text-xl text-white/60 font-light">
               review your year in music, right here.
             </p>
-            <Link
-              to="/global-wrapped/$year"
-              params={{ year: new Date().getFullYear().toString() }}
-              className="inline-block text-sm text-white/40 hover:text-white/60 transition-colors"
-            >
-              view global stats →
-            </Link>
           </motion.div>
 
           {/* Single bar input + button */}
@@ -170,6 +163,15 @@ function Home() {
               {error}
             </motion.p>
           )}
+          <div className="w-full flex justify-center">
+            <Link
+              to="/global-wrapped/$year"
+              params={{ year: new Date().getFullYear().toString() }}
+              className="w-full text-sm text-center text-white/40 hover:text-white/60 transition-colors"
+            >
+              or, view global stats →
+            </Link>
+          </div>
         </div>
       </div>
     </div>

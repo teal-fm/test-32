@@ -8,6 +8,8 @@ import {
 import { createFileRoute } from "@tanstack/react-router";
 import { motion, useInView, useScroll, useTransform } from "framer-motion";
 import html2canvas from "html2canvas-pro";
+import { ChevronRight, ChevronRightIcon } from "lucide-react";
+import { Link } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 
 // Hook to get responsive margin for intersection observer
@@ -2557,17 +2559,28 @@ function WrappedPage() {
             <p className="text-xs text-white/40 text-center mt-4">
               Recommend Chromium-based browsers for the best exporting quality
             </p>
+            <Link
+              to="/global-wrapped/$year"
+              params={{ year: "2025" }}
+              
+              className="mt-6 inline-block"
+            >
+              <p className="text-sm text-white/50  hover:text-white transition-colors duration-200">
+                View global stats{" "}
+                <ChevronRightIcon className="inline-block w-4 h-4 ml-1" />
+              </p>
+            </Link>
           </FadeUpSection>
         </div>
-        <footer>
-          <div className="bg-[#050505] text-white/50 text-center py-6 px-4 text-sm">
-            <p>
-              Data from Musicbrainz, Spotify. All rights reserved by their
-              respective owners.
-            </p>
-          </div>
-        </footer>
       </section>
+      <footer>
+        <div className="bg-[#050505] text-white/50 text-center py-6 px-4 text-sm">
+          <p>
+            Data from Musicbrainz, Spotify. All rights reserved by their
+            respective owners.
+          </p>
+        </div>
+      </footer>
 
       {/* Share cards - hidden but renderable */}
       <section className="fixed -left-[9999px] top-0 py-24 px-8 bg-[#0a0a0a]">

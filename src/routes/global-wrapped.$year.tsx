@@ -401,7 +401,7 @@ function GlobalWrapped() {
     async function fetchData() {
       try {
         const response = await fetch(
-          `${import.meta.env.VITE_API_URL || "http://localhost:3001"}/api/global-wrapped/${year}`,
+          `${"https://yearinmusic-api.teal.fm"}/api/global-wrapped/${year}`,
         );
 
         if (!response.ok) {
@@ -546,7 +546,11 @@ function GlobalWrapped() {
                 </p>
                 {data.top_artists[0]?.image_url && (
                   <img
-                    src={data.top_artists[0]?.image_url}
+                    src={
+                      data.top_artists[0]?.image_url &&
+                      "https://yearinmusic-api.teal.fm" +
+                        data.top_artists[0]?.image_url
+                    }
                     alt={data.top_artists[0]?.name}
                     className="mb-6 lg:mb-8 rounded-2xl border border-white/10 shadow-lg w-full max-w-sm lg:w-4/5 brightness-90"
                   />
@@ -629,7 +633,11 @@ function GlobalWrapped() {
                   <div className="bg-white/5 backdrop-blur-sm rounded-3xl p-6 lg:p-8 border border-white/10">
                     {data.top_artists[1].image_url && (
                       <img
-                        src={data.top_artists[1].image_url}
+                        src={
+                          data.top_artists[1]?.image_url &&
+                          "https://yearinmusic-api.teal.fm" +
+                            data.top_artists[1]?.image_url
+                        }
                         alt={data.top_artists[1].name}
                         className="w-full aspect-square object-cover rounded-2xl mb-6 brightness-90"
                       />
@@ -668,7 +676,11 @@ function GlobalWrapped() {
                   <div className="bg-white/5 backdrop-blur-sm rounded-3xl p-6 lg:p-8 border border-white/10">
                     {data.top_artists[2].image_url && (
                       <img
-                        src={data.top_artists[2].image_url}
+                        src={
+                          data.top_artists[2]?.image_url &&
+                          "https://yearinmusic-api.teal.fm" +
+                            data.top_artists[2]?.image_url
+                        }
                         alt={data.top_artists[2].name}
                         className="w-full aspect-square object-cover rounded-2xl mb-6 brightness-90"
                       />
