@@ -192,7 +192,7 @@ export const Route = createFileRoute("/wrapped/$handle")({
   component: WrappedPage,
   head: ({ params }) => {
     const year = new Date().getFullYear();
-    const ogImageUrl = `http://localhost:3001/api/wrapped/${year}/og?handle=${encodeURIComponent(
+    const ogImageUrl = `http://yearinmusic-api.teal.fm/api/wrapped/${year}/og?handle=${encodeURIComponent(
       params.handle,
     )}`;
     const pageUrl = `https://yearinmusic.teal.fm/wrapped/${params.handle}`;
@@ -204,7 +204,7 @@ export const Route = createFileRoute("/wrapped/$handle")({
         },
         {
           name: "description",
-          content: `${params.handle}'s year in music as tracked by teal.fm - the best music tracking app.`,
+          content: `${params.handle}'s year in music as tracked by teal.fm.`,
         },
         // Open Graph
         {
@@ -529,7 +529,7 @@ function WrappedPage() {
 
         const year = new Date().getFullYear();
         const response = await fetch(
-          `http://localhost:3001/api/wrapped/${year}?did=${did}`,
+          `https://yearinmusic-api.teal.fm/api/wrapped/${year}?did=${did}`,
         );
         if (!response.ok) {
           throw new Error("Failed to fetch wrapped data");

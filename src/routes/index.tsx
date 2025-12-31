@@ -8,8 +8,7 @@ export const Route = createFileRoute("/")({
     meta: [
       {
         name: "description",
-        content:
-          "Review your year in music as tracked by teal.fm - the best music tracking app.",
+        content: "Review your year in music as tracked by teal.fm.",
       },
       {
         title: "teal.fm's Year in Music",
