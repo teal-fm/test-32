@@ -54,6 +54,35 @@ pub struct WrappedData {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+pub struct GlobalWrappedData {
+    year: u32,
+    verified_minutes: f64,
+    total_users: u32,
+    unique_artists: u32,
+    unique_tracks: u32,
+    top_users: Vec<TopUser>,
+    top_artists: Vec<TopArtist>,
+    top_tracks: Vec<TopTrack>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    user_percentile: Option<GlobalUserPercentile>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct GlobalUserPercentile {
+    total_minutes: f64,
+    total_plays: f64,
+    unique_artists: f64,
+    unique_tracks: f64,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct TopUser {
+    did: String,
+    plays: u32,
+    minutes: f64,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
 struct MusicBuddy {
     did: String,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -105,6 +134,11 @@ struct DayActivity {
 #[derive(Debug, Deserialize)]
 struct WrappedQuery {
     did: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct GlobalWrappedQuery {
+    did: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -327,6 +361,86 @@ async fn get_wrapped(
     Ok(Json(data))
 }
 
+#[axum::debug_handler]
+async fn get_global_wrapped(
+    State(state): State<AppState>,
+    Path(year): Path<u32>,
+    Query(params): Query<GlobalWrappedQuery>,
+) -> Result<Json<GlobalWrappedData>, axum::http::StatusCode> {
+    if let Ok(Some(_cached)) = wrapped::get_cached_global_wrapped(&state.db, year).await {
+        tracing::info!("returning cached global data for year {}", year);
+    } else {
+        tracing::info!("calculating global wrapped stats for year {}", year);
+    }
+
+    let user_did = params.did.as_deref();
+    let stats = wrapped::calculate_global_wrapped_stats(&state.db, year, user_did)
+        .await
+        .map_err(|e| {
+            tracing::error!("failed to calculate global wrapped stats: {}", e);
+            axum::http::StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+
+    if let Err(e) = wrapped::cache_global_wrapped(&state.db, year, &stats).await {
+        tracing::warn!("failed to cache global wrapped data: {}", e);
+    }
+
+    let top_users = stats
+        .top_users
+        .into_iter()
+        .map(|(did, plays, minutes)| TopUser { did, plays, minutes })
+        .collect();
+
+    let top_artists = stats
+        .top_artists
+        .into_iter()
+        .map(|(name, plays, minutes, mb_id)| TopArtist {
+            name,
+            plays,
+            minutes,
+            mb_id,
+            image_url: None,
+            top_track: None,
+            top_track_plays: None,
+            top_track_duration_ms: None,
+        })
+        .collect();
+
+    let top_tracks = stats
+        .top_tracks
+        .into_iter()
+        .map(|((title, artist), plays, metadata)| TopTrack {
+            title,
+            artist,
+            plays,
+            recording_mb_id: metadata.recording_mb_id,
+            release_name: metadata.release_name,
+            release_mb_id: metadata.release_mb_id,
+        })
+        .collect();
+
+    let user_percentile = stats.user_percentile.map(|p| GlobalUserPercentile {
+        total_minutes: p.total_minutes,
+        total_plays: p.total_plays,
+        unique_artists: p.unique_artists,
+        unique_tracks: p.unique_tracks,
+    });
+
+    let data = GlobalWrappedData {
+        year,
+        verified_minutes: stats.verified_minutes,
+        total_users: stats.total_users,
+        unique_artists: stats.unique_artists,
+        unique_tracks: stats.unique_tracks,
+        top_users,
+        top_artists,
+        top_tracks,
+        user_percentile,
+    };
+
+    Ok(Json(data))
+}
+
 async fn health_check() -> &'static str {
     "ok"
 }
@@ -543,6 +657,7 @@ pub async fn run() {
         .route("/health", get(health_check))
         .route("/api/wrapped/:year", get(get_wrapped))
         .route("/api/wrapped/:year/og", get(get_og_image))
+        .route("/api/global-wrapped/:year", get(get_global_wrapped))
         .route("/images/:filename", get(serve_image))
         .layer(CorsLayer::permissive())
         .with_state(state);
