@@ -293,6 +293,12 @@ function PercentileChart({
   const tick2Value = Math.pow(10, logTick2);
   const tick3Value = Math.pow(10, logTick3);
 
+  const formatNumber = (n: number) => {
+    if (n >= 1000000) return `${(n / 1000000).toFixed(1)}M`;
+    if (n >= 1000) return `${(n / 1000).toFixed(1)}k`;
+    return n.toFixed(0);
+  };
+
   return (
     <FadeUpSection delay={delay}>
       <div ref={chartRef}>
@@ -301,9 +307,15 @@ function PercentileChart({
         </p>
         <div className="relative h-48 sm:h-56 bg-white/5 backdrop-blur-sm rounded-2xl p-6 border border-white/10">
           <div className="absolute left-0 top-0 bottom-0 w-8 flex flex-col justify-between py-10">
-            <span className="text-[10px] text-white/30">{formatter(tick3Value)}</span>
-            <span className="text-[10px] text-white/30">{formatter(tick2Value)}</span>
-            <span className="text-[10px] text-white/30">{formatter(tick1Value)}</span>
+            <span className="text-[10px] text-white/30 text-right pr-1">{formatNumber(tick3Value)}</span>
+            <span className="text-[10px] text-white/30 text-right pr-1">{formatNumber(tick2Value)}</span>
+            <span className="text-[10px] text-white/30 text-right pr-1">{formatNumber(tick1Value)}</span>
+          </div>
+          <div className="absolute left-8 top-10 bottom-10 w-8 flex flex-col justify-between">
+            <div className="h-1/4 border-b border-white/10" />
+            <div className="h-1/4 border-b border-white/10" />
+            <div className="h-1/4 border-b border-white/10" />
+            <div className="h-1/4 border-b border-white/10" />
           </div>
           <div className="absolute inset-0 flex items-end justify-between gap-1 px-8 pb-10 pt-12 ml-8">
             {data.map(([percent, value], i) => {
@@ -329,7 +341,7 @@ function PercentileChart({
                   className="flex-1 rounded-t-sm relative group cursor-pointer"
                   style={{ background: color, minHeight: "2px" }}
                 >
-                  <div className="absolute -top-8 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity text-xs text-white/80 whitespace-nowrap bg-black/50 px-2 py-1 rounded">
+                  <div className="absolute -top-8 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity text-xs text-white/80 whitespace-nowrap bg-black/50 px-2 py-1 rounded z-10">
                     {formatter(value)}
                   </div>
                 </motion.div>
@@ -339,15 +351,15 @@ function PercentileChart({
           <div className="absolute inset-x-0 bottom-3 flex justify-between px-10 ml-8">
             <div className="text-left">
               <span className="text-xs text-white/30 block">min</span>
-              <span className="text-xs text-white/50">{formatter(minValue)}</span>
+              <span className="text-xs text-white/50">{formatNumber(minValue)}</span>
             </div>
             <div className="text-center">
               <span className="text-xs text-white/30 block">median</span>
-              <span className="text-xs text-white/50">{formatter(p50Value)}</span>
+              <span className="text-xs text-white/50">{formatNumber(p50Value)}</span>
             </div>
             <div className="text-right">
               <span className="text-xs text-white/30 block">max</span>
-              <span className="text-xs text-white/50">{formatter(p100Value)}</span>
+              <span className="text-xs text-white/50">{formatNumber(p100Value)}</span>
             </div>
           </div>
         </div>
