@@ -9,3 +9,6 @@ dist
 /target
 .env
 images/**
+
+# Generated files
+src/routeTree.gen.ts
