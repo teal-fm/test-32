@@ -76,14 +76,17 @@ function AlbumArt({
 }) {
   const [src, setSrc] = useState<string>(ALBUM_PLACEHOLDER);
   const [hasError, setHasError] = useState(false);
+  const [mbIdTried, setMbIdTried] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
 
     async function resolveAlbumArt() {
-      if (releaseMbId && releaseMbId !== "undefined") {
+      const idToTry = mbIdTried || releaseMbId;
+      
+      if (idToTry && idToTry !== "undefined") {
         setSrc(
-          `https://coverartarchive.org/release/${releaseMbId}/front-500.jpg`,
+          `https://coverartarchive.org/release/${idToTry}/front-500.jpg`,
         );
         return;
       }
@@ -104,14 +107,28 @@ function AlbumArt({
     return () => {
       cancelled = true;
     };
-  }, [releaseMbId, title, artist]);
+  }, [releaseMbId, title, artist, mbIdTried]);
+
+  const handleError = async () => {
+    if (!hasError) {
+      setHasError(true);
+      // If the releaseMbId failed, try MusicBrainz lookup
+      if (releaseMbId && releaseMbId !== "undefined" && !mbIdTried) {
+        const foundMbId = await lookupReleaseMbId(title, artist);
+        if (foundMbId && foundMbId !== releaseMbId) {
+          setMbIdTried(foundMbId);
+          setHasError(false);
+        }
+      }
+    }
+  };
 
   return (
     <img
       src={hasError ? ALBUM_PLACEHOLDER : src}
       alt={alt || title}
       className={className}
-      onError={() => setHasError(true)}
+      onError={handleError}
     />
   );
 }
@@ -1057,6 +1074,22 @@ function GlobalWrapped() {
               year of discovery.
             </p>
           </FadeUpSection>
+        </div>
+      </section>
+
+      <section className="min-h-screen flex items-center justify-center px-8 relative overflow-visible">
+        <div className="absolute inset-0 opacity-20">
+          <MeshGradient
+            colors={["#00d9ff", "#00ffaa", "#ff0099"]}
+            distortion={0.4}
+            speed={0.15}
+          />
+        </div>
+
+        <div className="relative z-10 max-w-4xl mx-auto text-center">
+          <h2 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl text-white/80 mb-8">
+            To the future.
+          </h2>
         </div>
       </section>
     </div>
