@@ -409,10 +409,10 @@ pub struct GlobalWrappedStats {
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct UserPercentile {
-    pub total_minutes: f64,
-    pub total_plays: f64,
-    pub unique_artists: f64,
-    pub unique_tracks: f64,
+    pub total_minutes: i32,
+    pub total_plays: i32,
+    pub unique_artists: i32,
+    pub unique_tracks: i32,
 }
 
 pub async fn calculate_global_wrapped_stats(
@@ -464,10 +464,10 @@ pub async fn calculate_global_wrapped_stats(
         if let Some((user_plays, user_unique_tracks, user_duration_ms, user_unique_artists)) = user_stats {
             let user_minutes = user_duration_ms as f64 / (1000.0 * 60.0);
 
-            let percentile_minutes: f64 = sqlx::query(
+            let percentile_minutes: i32 = sqlx::query(
                 r#"
                 SELECT
-                    100.0 * COUNT(*) / $1 as percentile
+                    FLOOR(100.0 * COUNT(*) / $1)::INTEGER as percentile
                 FROM (
                     SELECT user_did, SUM(COALESCE(duration_ms, 210000)) / 1000.0 / 60.0 as total_minutes
                     FROM user_plays
@@ -482,12 +482,12 @@ pub async fn calculate_global_wrapped_stats(
             .bind(user_minutes)
             .fetch_one(pool)
             .await
-            .map(|row| row.get::<f64, _>("percentile"))?;
+            .map(|row| row.get::<i32, _>("percentile"))?;
 
-            let percentile_plays: f64 = sqlx::query(
+            let percentile_plays: i32 = sqlx::query(
                 r#"
                 SELECT
-                    100.0 * COUNT(*) / $1 as percentile
+                    FLOOR(100.0 * COUNT(*) / $1)::INTEGER as percentile
                 FROM (
                     SELECT user_did, COUNT(*) as total_plays
                     FROM user_plays
@@ -502,12 +502,12 @@ pub async fn calculate_global_wrapped_stats(
             .bind(user_plays)
             .fetch_one(pool)
             .await
-            .map(|row| row.get::<f64, _>("percentile"))?;
+            .map(|row| row.get::<i32, _>("percentile"))?;
 
-            let percentile_artists: f64 = sqlx::query(
+            let percentile_artists: i32 = sqlx::query(
                 r#"
                 SELECT
-                    100.0 * COUNT(*) / $1 as percentile
+                    FLOOR(100.0 * COUNT(*) / $1)::INTEGER as percentile
                 FROM (
                     SELECT
                         user_did,
@@ -524,12 +524,12 @@ pub async fn calculate_global_wrapped_stats(
             .bind(user_unique_artists)
             .fetch_one(pool)
             .await
-            .map(|row| row.get::<f64, _>("percentile"))?;
+            .map(|row| row.get::<i32, _>("percentile"))?;
 
-            let percentile_tracks: f64 = sqlx::query(
+            let percentile_tracks: i32 = sqlx::query(
                 r#"
                 SELECT
-                    100.0 * COUNT(*) / $1 as percentile
+                    FLOOR(100.0 * COUNT(*) / $1)::INTEGER as percentile
                 FROM (
                     SELECT user_did, COUNT(DISTINCT track_name) as unique_tracks
                     FROM user_plays
@@ -544,7 +544,7 @@ pub async fn calculate_global_wrapped_stats(
             .bind(user_unique_tracks)
             .fetch_one(pool)
             .await
-            .map(|row| row.get::<f64, _>("percentile"))?;
+            .map(|row| row.get::<i32, _>("percentile"))?;
 
             Some(UserPercentile {
                 total_minutes: percentile_minutes,

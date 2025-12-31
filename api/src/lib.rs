@@ -69,10 +69,10 @@ pub struct GlobalWrappedData {
 
 #[derive(Debug, Serialize, Deserialize)]
 struct GlobalUserPercentile {
-    total_minutes: f64,
-    total_plays: f64,
-    unique_artists: f64,
-    unique_tracks: f64,
+    total_minutes: i32,
+    total_plays: i32,
+    unique_artists: i32,
+    unique_tracks: i32,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
