@@ -818,7 +818,11 @@ function WrappedPage() {
                   Your Top Artist
                 </p>
                 <img
-                  src={data.top_artists[0]?.image_url}
+                  src={
+                    data.top_artists[0]?.image_url &&
+                    "https://yearinmusic-api.teal.fm" +
+                      data.top_artists[0]?.image_url
+                  }
                   alt={data.top_artists[0]?.name}
                   className="mb-6 lg:mb-8 rounded-2xl border border-white/10 shadow-lg w-full max-w-sm lg:w-4/5 brightness-90"
                 />
@@ -933,7 +937,11 @@ function WrappedPage() {
                   <div className="bg-white/5 backdrop-blur-sm rounded-3xl p-6 lg:p-8 border border-white/10">
                     {data.top_artists[1].image_url && (
                       <img
-                        src={data.top_artists[1].image_url}
+                        src={
+                          data.top_artists[1]?.image_url &&
+                          "https://yearinmusic-api.teal.fm" +
+                            data.top_artists[1]?.image_url
+                        }
                         alt={data.top_artists[1].name}
                         className="w-full aspect-square object-cover rounded-2xl mb-6 brightness-90"
                       />
@@ -981,7 +989,11 @@ function WrappedPage() {
                   <div className="bg-white/5 backdrop-blur-sm rounded-3xl p-6 lg:p-8 border border-white/10">
                     {data.top_artists[2].image_url && (
                       <img
-                        src={data.top_artists[2].image_url}
+                        src={
+                          data.top_artists[2]?.image_url &&
+                          "https://yearinmusic-api.teal.fm" +
+                            data.top_artists[2]?.image_url
+                        }
                         alt={data.top_artists[2].name}
                         className="w-full aspect-square object-cover rounded-2xl mb-6 brightness-90"
                       />
@@ -2300,7 +2312,10 @@ function WrappedPage() {
                   {artist.image_url && (
                     <div className="relative w-full aspect-square overflow-visible">
                       <img
-                        src={artist.image_url}
+                        src={
+                          artist.image_url &&
+                          "https://yearinmusic-api.teal.fm" + artist.image_url
+                        }
                         alt={artist.name}
                         className="w-full h-full object-cover"
                       />
@@ -2613,7 +2628,11 @@ function WrappedPage() {
                 <div className="flex-1 flex flex-col justify-center mt-12">
                   {data.top_artists[0]?.image_url && (
                     <img
-                      src={data.top_artists[0].image_url}
+                      src={
+                        data.top_artists[0]?.image_url &&
+                        "https://yearinmusic-api.teal.fm" +
+                          data.top_artists[0]?.image_url
+                      }
                       alt={data.top_artists[0].name}
                       className="w-96 h-96 object-cover rounded-3xl mx-auto mb-12 brightness-90 scale-150 -z-20"
                     />
@@ -2953,7 +2972,11 @@ function WrappedPage() {
                 {data.top_artists[0]?.image_url && (
                   <div className="absolute w-full -m-16 -z-10">
                     <img
-                      src={data.top_artists[0].image_url}
+                      src={
+                        data.top_artists[0]?.image_url &&
+                        "https://yearinmusic-api.teal.fm" +
+                          data.top_artists[0]?.image_url
+                      }
                       alt={data.top_artists[0].name}
                       className="aspect-square w-full object-cover rounded-2xl absolute top-0 left-0 -z-20"
                     />
