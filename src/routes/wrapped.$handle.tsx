@@ -2559,6 +2559,14 @@ function WrappedPage() {
             </p>
           </FadeUpSection>
         </div>
+        <footer>
+          <div className="bg-[#050505] text-white/50 text-center py-6 px-4 text-sm">
+            <p>
+              Data from Musicbrainz, Spotify. All rights reserved by their
+              respective owners.
+            </p>
+          </div>
+        </footer>
       </section>
 
       {/* Share cards - hidden but renderable */}

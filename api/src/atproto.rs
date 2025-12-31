@@ -141,16 +141,35 @@ pub struct DidDocument {
     pub handle: Option<String>,
 }
 
+fn get_did_doc_url(did: &str) -> Result<String> {
+    if did.starts_with("did:plc") {
+        Ok(format!("https://plc.directory/{}", did))
+    } else if did.starts_with("did:web") {
+        let domain = did.trim_start_matches("did:web:");
+        Ok(format!("https://{}/.well-known/did.json", domain))
+    } else {
+        anyhow::bail!("unsupported DID method");
+    }
+}
+
 /// Resolve DID to get both PDS endpoint and handle
 pub async fn resolve_did_document(did: &str) -> Result<DidDocument> {
-    let plc_url = format!("https://plc.directory/{}", did);
+    let plc_url = get_did_doc_url(did)?;
+    tracing::info!("resolving DID document from {}", plc_url);
     let response = reqwest::get(&plc_url).await?;
     let doc: serde_json::Value = response.json().await?;
 
     let pds = doc
         .get("service")
         .and_then(|s| s.as_array())
-        .and_then(|arr| arr.first())
+        .and_then(|arr| {
+            arr.iter().find(|s| {
+                s.get("type")
+                    .and_then(|t| t.as_str())
+                    .map(|t| t == "AtprotoPersonalDataServer")
+                    .unwrap_or(false)
+            })
+        })
         .and_then(|s| s.get("serviceEndpoint"))
         .and_then(|e| e.as_str())
         .ok_or_else(|| anyhow::anyhow!("no PDS found in DID document"))?

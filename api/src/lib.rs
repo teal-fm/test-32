@@ -6,6 +6,7 @@ use axum::{
     routing::get,
     Router,
 };
+use futures::future::join_all;
 use serde::{Deserialize, Serialize};
 use sqlx::postgres::PgPool;
 use std::net::SocketAddr;
@@ -21,9 +22,43 @@ pub mod models;
 pub mod og_image;
 pub mod wrapped;
 
+async fn lookup_release_from_recording(
+    client: &reqwest::Client,
+    recording_mb_id: &str,
+) -> Result<Option<String>, reqwest::Error> {
+    let url = format!(
+        "https://musicbrainz.org/ws/2/recording/{}?fmt=json&inc=releases",
+        recording_mb_id
+    );
+
+    let response = client
+        .get(&url)
+        .header("User-Agent", "TealWrapped/1.0 (https://teal.fm)")
+        .send()
+        .await?;
+
+    if !response.status().is_success() {
+        return Ok(None);
+    }
+
+    let data: serde_json::Value = response.json().await?;
+    let releases = data.get("releases").and_then(|r| r.as_array());
+
+    if let Some(releases) = releases {
+        if let Some(first_release) = releases.first() {
+            if let Some(release_id) = first_release.get("id").and_then(|id| id.as_str()) {
+                return Ok(Some(release_id.to_string()));
+            }
+        }
+    }
+
+    Ok(None)
+}
+
 #[derive(Clone)]
 struct AppState {
     db: PgPool,
+    http_client: reqwest::Client,
     spotify_client_id: String,
     spotify_client_secret: String,
     fanart_api_key: String,
@@ -51,6 +86,53 @@ pub struct WrappedData {
     similar_users: Option<Vec<MusicBuddy>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     profile_picture: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct GlobalWrappedData {
+    year: u32,
+    verified_minutes: f64,
+    total_users: u32,
+    unique_artists: u32,
+    unique_tracks: u32,
+    top_users: Vec<TopUser>,
+    top_artists: Vec<GlobalTopArtist>,
+    top_tracks: Vec<TopTrack>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    user_percentile: Option<GlobalUserPercentile>,
+    distribution: GlobalDistribution,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct GlobalTopArtist {
+    name: String,
+    plays: u32,
+    minutes: f64,
+    mb_id: Option<String>,
+    image_url: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct GlobalDistribution {
+    minutes_percentiles: Vec<(i32, f64)>,
+    plays_percentiles: Vec<(i32, u32)>,
+    artists_percentiles: Vec<(i32, u32)>,
+    tracks_percentiles: Vec<(i32, u32)>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct GlobalUserPercentile {
+    total_minutes: i32,
+    total_plays: i32,
+    unique_artists: i32,
+    unique_tracks: i32,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct TopUser {
+    did: String,
+    plays: u32,
+    minutes: f64,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -105,6 +187,11 @@ struct DayActivity {
 #[derive(Debug, Deserialize)]
 struct WrappedQuery {
     did: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct GlobalWrappedQuery {
+    did: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -327,6 +414,150 @@ async fn get_wrapped(
     Ok(Json(data))
 }
 
+#[axum::debug_handler]
+async fn get_global_wrapped(
+    State(state): State<AppState>,
+    Path(year): Path<u32>,
+    Query(params): Query<GlobalWrappedQuery>,
+) -> Result<Json<GlobalWrappedData>, axum::http::StatusCode> {
+    if let Ok(Some(_cached)) = wrapped::get_cached_global_wrapped(&state.db, year).await {
+        tracing::info!("returning cached global data for year {}", year);
+    } else {
+        tracing::info!("calculating global wrapped stats for year {}", year);
+    }
+
+    let user_did = params.did.as_deref();
+    let stats = wrapped::calculate_global_wrapped_stats(&state.db, year, user_did)
+        .await
+        .map_err(|e| {
+            tracing::error!("failed to calculate global wrapped stats: {}", e);
+            axum::http::StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+
+    if let Err(e) = wrapped::cache_global_wrapped(&state.db, year, &stats).await {
+        tracing::warn!("failed to cache global wrapped data: {}", e);
+    }
+
+    let top_users = stats
+        .top_users
+        .into_iter()
+        .map(|(did, plays, minutes)| TopUser {
+            did,
+            plays,
+            minutes,
+        })
+        .collect();
+
+    let spotify_client_id = std::env::var("SPOTIFY_CLIENT_ID").unwrap_or_default();
+    let spotify_client_secret = std::env::var("SPOTIFY_CLIENT_SECRET").unwrap_or_default();
+    let fanart_api_key = std::env::var("FANART_API_KEY").unwrap_or_default();
+
+    let mut top_artists: Vec<GlobalTopArtist> = Vec::new();
+    for (name, plays, minutes, mb_id) in stats.top_artists {
+        let image_url = if let Some(id) = &mb_id {
+            match fanart::get_artist_image(
+                &state.db,
+                id,
+                &name,
+                &spotify_client_id,
+                &spotify_client_secret,
+                &fanart_api_key,
+            )
+            .await
+            {
+                Ok(Some(url)) => Some(url),
+                Ok(None) => None,
+                Err(e) => {
+                    tracing::warn!("failed to fetch image for {}: {}", name, e);
+                    None
+                }
+            }
+        } else {
+            None
+        };
+
+        top_artists.push(GlobalTopArtist {
+            name,
+            plays,
+            minutes,
+            mb_id,
+            image_url,
+        });
+    }
+
+    let top_tracks: Vec<TopTrack> = {
+        let futures: Vec<_> = stats
+            .top_tracks
+            .into_iter()
+            .map(|((title, artist), plays, metadata)| {
+                let value = state.http_client.clone();
+                async move {
+                    let mut release_mb_id = metadata.release_mb_id;
+
+                    if release_mb_id.is_none() {
+                        if let Some(ref recording_mb_id) = metadata.recording_mb_id {
+                            match lookup_release_from_recording(&value, recording_mb_id).await {
+                                Ok(Some(id)) => release_mb_id = Some(id),
+                                Ok(None) => {
+                                    tracing::debug!(
+                                        "no release found for recording {}",
+                                        recording_mb_id
+                                    )
+                                }
+                                Err(e) => tracing::warn!(
+                                    "failed to lookup release for {}: {}",
+                                    recording_mb_id,
+                                    e
+                                ),
+                            }
+                        }
+                    }
+
+                    TopTrack {
+                        title,
+                        artist,
+                        plays,
+                        recording_mb_id: metadata.recording_mb_id,
+                        release_name: metadata.release_name,
+                        release_mb_id,
+                    }
+                }
+            })
+            .collect();
+
+        futures::future::join_all(futures).await
+    };
+
+    let user_percentile = stats.user_percentile.map(|p| GlobalUserPercentile {
+        total_minutes: p.total_minutes,
+        total_plays: p.total_plays,
+        unique_artists: p.unique_artists,
+        unique_tracks: p.unique_tracks,
+    });
+
+    let distribution = GlobalDistribution {
+        minutes_percentiles: stats.distribution.minutes_percentiles,
+        plays_percentiles: stats.distribution.plays_percentiles,
+        artists_percentiles: stats.distribution.artists_percentiles,
+        tracks_percentiles: stats.distribution.tracks_percentiles,
+    };
+
+    let data = GlobalWrappedData {
+        year,
+        verified_minutes: stats.verified_minutes,
+        total_users: stats.total_users,
+        unique_artists: stats.unique_artists,
+        unique_tracks: stats.unique_tracks,
+        top_users,
+        top_artists,
+        top_tracks,
+        user_percentile,
+        distribution,
+    };
+
+    Ok(Json(data))
+}
+
 async fn health_check() -> &'static str {
     "ok"
 }
@@ -534,6 +765,7 @@ pub async fn run() {
 
     let state = AppState {
         db,
+        http_client: reqwest::Client::new(),
         spotify_client_id,
         spotify_client_secret,
         fanart_api_key,
@@ -543,6 +775,7 @@ pub async fn run() {
         .route("/health", get(health_check))
         .route("/api/wrapped/:year", get(get_wrapped))
         .route("/api/wrapped/:year/og", get(get_og_image))
+        .route("/api/global-wrapped/:year", get(get_global_wrapped))
         .route("/images/:filename", get(serve_image))
         .layer(CorsLayer::permissive())
         .with_state(state);
