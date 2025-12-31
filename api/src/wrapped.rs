@@ -697,15 +697,23 @@ pub async fn calculate_global_wrapped_stats(
 
     let minutes_percentiles: Vec<(i32, f64)> = sqlx::query(
         r#"
-        SELECT
-            FLOOR(100.0 * ROW_NUMBER() OVER (ORDER BY total_minutes) / COUNT(*) OVER ())::INTEGER as percentile,
-            total_minutes
-        FROM (
+        WITH user_minutes AS (
             SELECT user_did, (SUM(COALESCE(duration_ms, 210000)) / 1000.0 / 60.0)::DOUBLE PRECISION as total_minutes
             FROM user_plays
             WHERE EXTRACT(YEAR FROM played_at) = $1
             GROUP BY user_did
-        ) user_minutes
+        ),
+        percentiles AS (
+            SELECT
+                UNNEST(ARRAY[0,5,10,15,20,25,30,35,40,45,50,55,60,65,70,75,80,85,90,95,100]) as percentile
+        )
+        SELECT
+            p.percentile,
+            PERCENTILE_CONT(0.01 * p.percentile) WITHIN GROUP (ORDER BY um.total_minutes) as total_minutes
+        FROM percentiles p
+        CROSS JOIN user_minutes um
+        GROUP BY p.percentile
+        ORDER BY p.percentile
         "#,
     )
     .bind(year_i32)
@@ -714,22 +722,30 @@ pub async fn calculate_global_wrapped_stats(
     .into_iter()
     .map(|row| {
         let percentile: i32 = row.get("percentile");
-        let minutes: f64 = row.get("total_minutes");
-        (percentile, minutes)
+        let minutes: Option<f64> = row.get("total_minutes");
+        (percentile, minutes.unwrap_or(0.0))
     })
     .collect();
 
     let plays_percentiles: Vec<(i32, u32)> = sqlx::query(
         r#"
-        SELECT
-            FLOOR(100.0 * ROW_NUMBER() OVER (ORDER BY total_plays) / COUNT(*) OVER ())::INTEGER as percentile,
-            total_plays
-        FROM (
+        WITH user_plays AS (
             SELECT user_did, COUNT(*) as total_plays
             FROM user_plays
             WHERE EXTRACT(YEAR FROM played_at) = $1
             GROUP BY user_did
-        ) user_plays
+        ),
+        percentiles AS (
+            SELECT
+                UNNEST(ARRAY[0,5,10,15,20,25,30,35,40,45,50,55,60,65,70,75,80,85,90,95,100]) as percentile
+        )
+        SELECT
+            p.percentile,
+            PERCENTILE_CONT(0.01 * p.percentile) WITHIN GROUP (ORDER BY up.total_plays)::INTEGER as total_plays
+        FROM percentiles p
+        CROSS JOIN user_plays up
+        GROUP BY p.percentile
+        ORDER BY p.percentile
         "#,
     )
     .bind(year_i32)
@@ -738,24 +754,32 @@ pub async fn calculate_global_wrapped_stats(
     .into_iter()
     .map(|row| {
         let percentile: i32 = row.get("percentile");
-        let plays: i64 = row.get("total_plays");
-        (percentile, plays as u32)
+        let plays: Option<i32> = row.get("total_plays");
+        (percentile, plays.unwrap_or(0) as u32)
     })
     .collect();
 
     let artists_percentiles: Vec<(i32, u32)> = sqlx::query(
         r#"
-        SELECT
-            FLOOR(100.0 * ROW_NUMBER() OVER (ORDER BY unique_artists) / COUNT(*) OVER ())::INTEGER as percentile,
-            unique_artists
-        FROM (
+        WITH user_artists AS (
             SELECT
                 user_did,
                 COUNT(DISTINCT artist->>'artistName') as unique_artists
             FROM user_plays, jsonb_array_elements(artists) as artist
             WHERE EXTRACT(YEAR FROM played_at) = $1
             GROUP BY user_did
-        ) user_artists
+        ),
+        percentiles AS (
+            SELECT
+                UNNEST(ARRAY[0,5,10,15,20,25,30,35,40,45,50,55,60,65,70,75,80,85,90,95,100]) as percentile
+        )
+        SELECT
+            p.percentile,
+            PERCENTILE_CONT(0.01 * p.percentile) WITHIN GROUP (ORDER BY ua.unique_artists)::INTEGER as unique_artists
+        FROM percentiles p
+        CROSS JOIN user_artists ua
+        GROUP BY p.percentile
+        ORDER BY p.percentile
         "#,
     )
     .bind(year_i32)
@@ -764,22 +788,30 @@ pub async fn calculate_global_wrapped_stats(
     .into_iter()
     .map(|row| {
         let percentile: i32 = row.get("percentile");
-        let artists: i64 = row.get("unique_artists");
-        (percentile, artists as u32)
+        let artists: Option<i32> = row.get("unique_artists");
+        (percentile, artists.unwrap_or(0) as u32)
     })
     .collect();
 
     let tracks_percentiles: Vec<(i32, u32)> = sqlx::query(
         r#"
-        SELECT
-            FLOOR(100.0 * ROW_NUMBER() OVER (ORDER BY unique_tracks) / COUNT(*) OVER ())::INTEGER as percentile,
-            unique_tracks
-        FROM (
+        WITH user_tracks AS (
             SELECT user_did, COUNT(DISTINCT track_name) as unique_tracks
             FROM user_plays
             WHERE EXTRACT(YEAR FROM played_at) = $1
             GROUP BY user_did
-        ) user_tracks
+        ),
+        percentiles AS (
+            SELECT
+                UNNEST(ARRAY[0,5,10,15,20,25,30,35,40,45,50,55,60,65,70,75,80,85,90,95,100]) as percentile
+        )
+        SELECT
+            p.percentile,
+            PERCENTILE_CONT(0.01 * p.percentile) WITHIN GROUP (ORDER BY ut.unique_tracks)::INTEGER as unique_tracks
+        FROM percentiles p
+        CROSS JOIN user_tracks ut
+        GROUP BY p.percentile
+        ORDER BY p.percentile
         "#,
     )
     .bind(year_i32)
@@ -788,8 +820,8 @@ pub async fn calculate_global_wrapped_stats(
     .into_iter()
     .map(|row| {
         let percentile: i32 = row.get("percentile");
-        let tracks: i64 = row.get("unique_tracks");
-        (percentile, tracks as u32)
+        let tracks: Option<i32> = row.get("unique_tracks");
+        (percentile, tracks.unwrap_or(0) as u32)
     })
     .collect();
 
