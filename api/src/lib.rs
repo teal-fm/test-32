@@ -61,11 +61,20 @@ pub struct GlobalWrappedData {
     unique_artists: u32,
     unique_tracks: u32,
     top_users: Vec<TopUser>,
-    top_artists: Vec<TopArtist>,
+    top_artists: Vec<GlobalTopArtist>,
     top_tracks: Vec<TopTrack>,
     #[serde(skip_serializing_if = "Option::is_none")]
     user_percentile: Option<GlobalUserPercentile>,
     distribution: GlobalDistribution,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct GlobalTopArtist {
+    name: String,
+    plays: u32,
+    minutes: f64,
+    mb_id: Option<String>,
+    image_url: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -400,20 +409,42 @@ async fn get_global_wrapped(
         .map(|(did, plays, minutes)| TopUser { did, plays, minutes })
         .collect();
 
-    let top_artists = stats
-        .top_artists
-        .into_iter()
-        .map(|(name, plays, minutes, mb_id)| TopArtist {
+    let spotify_client_id = std::env::var("SPOTIFY_CLIENT_ID").unwrap_or_default();
+    let spotify_client_secret = std::env::var("SPOTIFY_CLIENT_SECRET").unwrap_or_default();
+    let fanart_api_key = std::env::var("FANART_API_KEY").unwrap_or_default();
+
+    let mut top_artists: Vec<GlobalTopArtist> = Vec::new();
+    for (name, plays, minutes, mb_id) in stats.top_artists {
+        let image_url = if let Some(id) = &mb_id {
+            match fanart::get_artist_image(
+                &state.db,
+                id,
+                &name,
+                &spotify_client_id,
+                &spotify_client_secret,
+                &fanart_api_key,
+            )
+            .await
+            {
+                Ok(Some(url)) => Some(url),
+                Ok(None) => None,
+                Err(e) => {
+                    tracing::warn!("failed to fetch image for {}: {}", name, e);
+                    None
+                }
+            }
+        } else {
+            None
+        };
+
+        top_artists.push(GlobalTopArtist {
             name,
             plays,
             minutes,
             mb_id,
-            image_url: None,
-            top_track: None,
-            top_track_plays: None,
-            top_track_duration_ms: None,
-        })
-        .collect();
+            image_url,
+        });
+    }
 
     let top_tracks = stats
         .top_tracks
