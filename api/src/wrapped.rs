@@ -702,18 +702,25 @@ pub async fn calculate_global_wrapped_stats(
             FROM user_plays
             WHERE EXTRACT(YEAR FROM played_at) = $1
             GROUP BY user_did
+            HAVING SUM(COALESCE(duration_ms, 210000)) > 0
         ),
         percentiles AS (
             SELECT
                 UNNEST(ARRAY[0,5,10,15,20,25,30,35,40,45,50,55,60,65,70,75,80,85,90,95,100]) as percentile
+        ),
+        calc AS (
+            SELECT
+                p.percentile,
+                PERCENTILE_CONT(0.01 * p.percentile) WITHIN GROUP (ORDER BY um.total_minutes) as total_minutes
+            FROM percentiles p
+            CROSS JOIN user_minutes um
+            GROUP BY p.percentile
+            ORDER BY p.percentile
         )
         SELECT
-            p.percentile,
-            PERCENTILE_CONT(0.01 * p.percentile) WITHIN GROUP (ORDER BY um.total_minutes) as total_minutes
-        FROM percentiles p
-        CROSS JOIN user_minutes um
-        GROUP BY p.percentile
-        ORDER BY p.percentile
+            percentile,
+            CASE WHEN total_minutes IS NULL OR total_minutes < 0 THEN 0 ELSE total_minutes END as total_minutes
+        FROM calc
         "#,
     )
     .bind(year_i32)
@@ -722,8 +729,8 @@ pub async fn calculate_global_wrapped_stats(
     .into_iter()
     .map(|row| {
         let percentile: i32 = row.get("percentile");
-        let minutes: Option<f64> = row.get("total_minutes");
-        (percentile, minutes.unwrap_or(0.0))
+        let minutes: f64 = row.get("total_minutes");
+        (percentile, minutes)
     })
     .collect();
 

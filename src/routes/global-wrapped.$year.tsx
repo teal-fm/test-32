@@ -278,8 +278,10 @@ function PercentileChart({
   });
 
   const maxValue = Math.max(...data.map(([, v]) => v));
-  const minValue = Math.min(...data.map(([, v]) => v));
-  const range = maxValue - minValue || 1;
+  const minValue = Math.max(0.1, Math.min(...data.map(([, v]) => v)));
+  const logMax = Math.log10(maxValue);
+  const logMin = Math.log10(minValue);
+  const logRange = logMax - logMin || 1;
 
   return (
     <FadeUpSection delay={delay}>
@@ -290,15 +292,18 @@ function PercentileChart({
         <div className="relative h-48 sm:h-56 bg-white/5 backdrop-blur-sm rounded-2xl p-6 border border-white/10">
           <div className="absolute inset-0 flex items-end justify-between gap-1 px-6 pb-6 pt-12">
             {data.map(([percent, value], i) => {
-              const heightPercent = ((value - minValue) / range) * 100;
-              const barHeight = Math.max(heightPercent, 5);
+              const logValue = Math.log10(Math.max(value, 0.1));
+              const heightPercent = Math.max(
+                5,
+                ((logValue - logMin) / logRange) * 100,
+              );
 
               return (
                 <motion.div
                   key={percent}
                   initial={{ height: 0, opacity: 0 }}
                   animate={{
-                    height: isInView ? `${barHeight}%` : "0%",
+                    height: isInView ? `${heightPercent}%` : "0%",
                     opacity: isInView ? 1 : 0,
                   }}
                   transition={{
