@@ -283,6 +283,9 @@ function PercentileChart({
   const logMin = Math.log10(minValue);
   const logRange = logMax - logMin || 1;
 
+  const p50Value = data.find(([p]) => p === 50)?.[1] || 0;
+  const p100Value = data.find(([p]) => p === 100)?.[1] || 0;
+
   return (
     <FadeUpSection delay={delay}>
       <div ref={chartRef}>
@@ -290,7 +293,7 @@ function PercentileChart({
           {title}
         </p>
         <div className="relative h-48 sm:h-56 bg-white/5 backdrop-blur-sm rounded-2xl p-6 border border-white/10">
-          <div className="absolute inset-0 flex items-end justify-between gap-1 px-6 pb-6 pt-12">
+          <div className="absolute inset-0 flex items-end justify-between gap-1 px-6 pb-10 pt-12">
             {data.map(([percent, value], i) => {
               const logValue = Math.log10(Math.max(value, 0.1));
               const heightPercent = Math.max(
@@ -315,16 +318,25 @@ function PercentileChart({
                   style={{ background: color, minHeight: "2px" }}
                 >
                   <div className="absolute -top-8 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity text-xs text-white/80 whitespace-nowrap bg-black/50 px-2 py-1 rounded">
-                    P{percent}: {formatter(value)}
+                    {formatter(value)}
                   </div>
                 </motion.div>
               );
             })}
           </div>
           <div className="absolute inset-x-0 bottom-3 flex justify-between px-6">
-            <span className="text-xs text-white/30">P0</span>
-            <span className="text-xs text-white/30">P50</span>
-            <span className="text-xs text-white/30">P100</span>
+            <div className="text-left">
+              <span className="text-xs text-white/30 block">min</span>
+              <span className="text-xs text-white/50">{formatter(minValue)}</span>
+            </div>
+            <div className="text-center">
+              <span className="text-xs text-white/30 block">median</span>
+              <span className="text-xs text-white/50">{formatter(p50Value)}</span>
+            </div>
+            <div className="text-right">
+              <span className="text-xs text-white/30 block">max</span>
+              <span className="text-xs text-white/50">{formatter(p100Value)}</span>
+            </div>
           </div>
         </div>
       </div>
