@@ -15,6 +15,7 @@ import {
 } from "@paper-design/shaders-react";
 import { motion, useInView, useScroll, useTransform } from "framer-motion";
 import { useState, useEffect, useRef } from "react";
+import Throbber from "@/components/Throbber";
 
 const ALBUM_PLACEHOLDER =
   "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='500' height='500' viewBox='0 0 500 500'%3E%3Crect fill='%231a1a2e' width='500' height='500'/%3E%3Ccircle cx='250' cy='250' r='150' fill='none' stroke='%23333' stroke-width='2'/%3E%3Ccircle cx='250' cy='250' r='50' fill='%23333'/%3E%3C/svg%3E";
@@ -423,11 +424,7 @@ function GlobalWrapped() {
   if (loading) {
     return (
       <div className="bg-[#0a0a0a] text-white min-h-screen flex flex-col items-center justify-center">
-        <motion.div
-          animate={{ rotate: 360 }}
-          transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
-          className="w-12 h-12 border-4 border-t-white/40 border-r-white/20 border-b-white/10 border-l-transparent rounded-full"
-        />
+        <Throbber />
         <p className="text-white/60 mt-6">Loading global stats...</p>
       </div>
     );
