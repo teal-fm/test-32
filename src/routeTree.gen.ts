@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as WrappedHandleRouteImport } from './routes/wrapped.$handle'
+import { Route as GlobalWrappedYearRouteImport } from './routes/global-wrapped.$year'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -22,30 +23,39 @@ const WrappedHandleRoute = WrappedHandleRouteImport.update({
   path: '/wrapped/$handle',
   getParentRoute: () => rootRouteImport,
 } as any)
+const GlobalWrappedYearRoute = GlobalWrappedYearRouteImport.update({
+  id: '/global-wrapped/$year',
+  path: '/global-wrapped/$year',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/global-wrapped/$year': typeof GlobalWrappedYearRoute
   '/wrapped/$handle': typeof WrappedHandleRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/global-wrapped/$year': typeof GlobalWrappedYearRoute
   '/wrapped/$handle': typeof WrappedHandleRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/global-wrapped/$year': typeof GlobalWrappedYearRoute
   '/wrapped/$handle': typeof WrappedHandleRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/wrapped/$handle'
+  fullPaths: '/' | '/global-wrapped/$year' | '/wrapped/$handle'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/wrapped/$handle'
-  id: '__root__' | '/' | '/wrapped/$handle'
+  to: '/' | '/global-wrapped/$year' | '/wrapped/$handle'
+  id: '__root__' | '/' | '/global-wrapped/$year' | '/wrapped/$handle'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  GlobalWrappedYearRoute: typeof GlobalWrappedYearRoute
   WrappedHandleRoute: typeof WrappedHandleRoute
 }
 
@@ -65,11 +75,19 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof WrappedHandleRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/global-wrapped/$year': {
+      id: '/global-wrapped/$year'
+      path: '/global-wrapped/$year'
+      fullPath: '/global-wrapped/$year'
+      preLoaderRoute: typeof GlobalWrappedYearRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  GlobalWrappedYearRoute: GlobalWrappedYearRoute,
   WrappedHandleRoute: WrappedHandleRoute,
 }
 export const routeTree = rootRouteImport

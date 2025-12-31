@@ -142,9 +142,9 @@ pub struct DidDocument {
 }
 
 fn get_did_doc_url(did: &str) -> Result<String> {
-    if (did.starts_with("did:plc")) {
+    if did.starts_with("did:plc") {
         Ok(format!("https://plc.directory/{}", did))
-    } else if (did.starts_with("did:web")) {
+    } else if did.starts_with("did:web") {
         let domain = did.trim_start_matches("did:web:");
         Ok(format!("https://{}/.well-known/did.json", domain))
     } else {

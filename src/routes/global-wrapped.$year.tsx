@@ -83,11 +83,9 @@ function AlbumArt({
 
     async function resolveAlbumArt() {
       const idToTry = mbIdTried || releaseMbId;
-      
+
       if (idToTry && idToTry !== "undefined") {
-        setSrc(
-          `https://coverartarchive.org/release/${idToTry}/front-500.jpg`,
-        );
+        setSrc(`https://coverartarchive.org/release/${idToTry}/front-500.jpg`);
         return;
       }
 
@@ -308,7 +306,7 @@ function PercentileChart({
   const maxValue = Math.max(...data.map(([, v]) => v));
   const minValue = Math.max(0.1, Math.min(...data.map(([, v]) => v)));
   const logMax = Math.log10(maxValue);
-  const logMin = Math.log10(minValue);
+  const logMin = 0;
 
   const p50Value = data.find(([p]) => p === 50)?.[1] || 0;
   const p100Value = data.find(([p]) => p === 100)?.[1] || 0;
@@ -325,8 +323,8 @@ function PercentileChart({
         <p className="text-xs uppercase tracking-[0.3em] text-white/40 mb-6">
           {title}
         </p>
-        <div className="h-48 sm:h-52 bg-white/5 backdrop-blur-sm rounded-2xl p-3 sm:p-4 border border-white/10">
-          <ResponsiveContainer width="100%" height="100%">
+        <div className="h-64 bg-white/5 backdrop-blur-sm rounded-2xl py-3 sm:py-4 pr-2 border border-white/10">
+          <ResponsiveContainer width="100%" height="115%">
             <BarChart
               data={chartData}
               margin={{ top: 8, right: 8, left: 8, bottom: 25 }}
@@ -343,7 +341,8 @@ function PercentileChart({
                 tickFormatter={(v) => formatNumber(Math.pow(10, v))}
                 tick={{ fill: "rgba(255,255,255,0.3)", fontSize: 10 }}
                 axisLine={false}
-                tickLine={false}
+                tickLine={true}
+                tickCount={99}
                 width={35}
               />
               <Tooltip
@@ -1042,6 +1041,11 @@ function GlobalWrapped() {
               delay={0.5}
             />
           </div>
+          <p className="pt-3 text-end text-neutral-500">
+            * p100 excluded from minutes listened chart due to data verification
+            issues
+            <br />* y-axis is logarithmic for all charts
+          </p>
         </div>
       </section>
 
@@ -1087,11 +1091,39 @@ function GlobalWrapped() {
         </div>
 
         <div className="relative z-10 max-w-4xl mx-auto text-center">
-          <h2 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl text-white/80 mb-8">
-            To the future.
-          </h2>
+          <p className="text-lg sm:text-xl md:text-2xl text-white/50 leading-relaxed max-w-2xl mx-auto px-4 mb-12">
+            Thanks for making 2025 unforgettable.
+            <br />-{" "}
+            <span className="font-hand hover:text-white/80 transition-colors duration-200">
+              <a
+                href="https://bsky.app/profile/did:plc:tas6hj2xjrqben5653v5kohk"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Matt
+              </a>
+            </span>{" "}
+            and{" "}
+            <span className="font-hand hover:text-white/80 transition-colors duration-200">
+              <a
+                href="https://bsky.app/profile/did:plc:k644h4rq5bjfzcetgsa6tuby"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Natalie
+              </a>
+            </span>
+          </p>
         </div>
       </section>
+      <footer>
+        <div className="bg-[#050505] text-white/50 text-center py-6 px-4 text-sm">
+          <p>
+            Data from Musicbrainz, Spotify. All rights reserved by their
+            respective owners.
+          </p>
+        </div>
+      </footer>
     </div>
   );
 }

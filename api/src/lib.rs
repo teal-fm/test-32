@@ -489,32 +489,38 @@ async fn get_global_wrapped(
         let futures: Vec<_> = stats
             .top_tracks
             .into_iter()
-            .map(|((title, artist), plays, metadata)| async move {
-                let mut release_mb_id = metadata.release_mb_id;
+            .map(|((title, artist), plays, metadata)| {
+                let value = state.http_client.clone();
+                async move {
+                    let mut release_mb_id = metadata.release_mb_id;
 
-                if release_mb_id.is_none() {
-                    if let Some(ref recording_mb_id) = metadata.recording_mb_id {
-                        match lookup_release_from_recording(&state.http_client, recording_mb_id).await {
-                            Ok(Some(id)) => release_mb_id = Some(id),
-                            Ok(None) => {
-                                tracing::debug!("no release found for recording {}", recording_mb_id)
+                    if release_mb_id.is_none() {
+                        if let Some(ref recording_mb_id) = metadata.recording_mb_id {
+                            match lookup_release_from_recording(&value, recording_mb_id).await {
+                                Ok(Some(id)) => release_mb_id = Some(id),
+                                Ok(None) => {
+                                    tracing::debug!(
+                                        "no release found for recording {}",
+                                        recording_mb_id
+                                    )
+                                }
+                                Err(e) => tracing::warn!(
+                                    "failed to lookup release for {}: {}",
+                                    recording_mb_id,
+                                    e
+                                ),
                             }
-                            Err(e) => tracing::warn!(
-                                "failed to lookup release for {}: {}",
-                                recording_mb_id,
-                                e
-                            ),
                         }
                     }
-                }
 
-                TopTrack {
-                    title,
-                    artist,
-                    plays,
-                    recording_mb_id: metadata.recording_mb_id,
-                    release_name: metadata.release_name,
-                    release_mb_id,
+                    TopTrack {
+                        title,
+                        artist,
+                        plays,
+                        recording_mb_id: metadata.recording_mb_id,
+                        release_name: metadata.release_name,
+                        release_mb_id,
+                    }
                 }
             })
             .collect();
