@@ -286,6 +286,13 @@ function PercentileChart({
   const p50Value = data.find(([p]) => p === 50)?.[1] || 0;
   const p100Value = data.find(([p]) => p === 100)?.[1] || 0;
 
+  const logTick1 = Math.log10(minValue) + logRange * 0.25;
+  const logTick2 = Math.log10(minValue) + logRange * 0.5;
+  const logTick3 = Math.log10(minValue) + logRange * 0.75;
+  const tick1Value = Math.pow(10, logTick1);
+  const tick2Value = Math.pow(10, logTick2);
+  const tick3Value = Math.pow(10, logTick3);
+
   return (
     <FadeUpSection delay={delay}>
       <div ref={chartRef}>
@@ -293,7 +300,12 @@ function PercentileChart({
           {title}
         </p>
         <div className="relative h-48 sm:h-56 bg-white/5 backdrop-blur-sm rounded-2xl p-6 border border-white/10">
-          <div className="absolute inset-0 flex items-end justify-between gap-1 px-6 pb-10 pt-12">
+          <div className="absolute left-0 top-0 bottom-0 w-8 flex flex-col justify-between py-10">
+            <span className="text-[10px] text-white/30">{formatter(tick3Value)}</span>
+            <span className="text-[10px] text-white/30">{formatter(tick2Value)}</span>
+            <span className="text-[10px] text-white/30">{formatter(tick1Value)}</span>
+          </div>
+          <div className="absolute inset-0 flex items-end justify-between gap-1 px-8 pb-10 pt-12 ml-8">
             {data.map(([percent, value], i) => {
               const logValue = Math.log10(Math.max(value, 0.1));
               const heightPercent = Math.max(
@@ -324,7 +336,7 @@ function PercentileChart({
               );
             })}
           </div>
-          <div className="absolute inset-x-0 bottom-3 flex justify-between px-6">
+          <div className="absolute inset-x-0 bottom-3 flex justify-between px-10 ml-8">
             <div className="text-left">
               <span className="text-xs text-white/30 block">min</span>
               <span className="text-xs text-white/50">{formatter(minValue)}</span>
