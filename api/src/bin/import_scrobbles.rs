@@ -77,25 +77,27 @@ async fn main() -> anyhow::Result<()> {
         );
 
         let db_pool = std::sync::Arc::new(db_pool);
-        let mut success_count = 0;
-        let mut error_count = 0;
 
-        stream::iter(dids)
+        let results: Vec<_> = stream::iter(dids)
             .map(|did| {
                 let db_pool = db_pool.clone();
-                async move { import_did(&db_pool, &did, year).await }
-            })
-            .buffer_unordered(parallelism)
-            .for_each(|result| async {
-                match result {
-                    Ok(_) => success_count += 1,
-                    Err(e) => {
-                        tracing::error!("Import failed: {}", e);
-                        error_count += 1;
-                    }
+                async move {
+                    let result = import_did(&db_pool, &did, year).await;
+                    (did, result)
                 }
             })
+            .buffer_unordered(parallelism)
+            .collect()
             .await;
+
+        let success_count = results.iter().filter(|(_, r)| r.is_ok()).count();
+        let error_count = results.iter().filter(|(_, r)| r.is_err()).count();
+
+        for (did, result) in results {
+            if let Err(e) = result {
+                tracing::error!("Import failed for {}: {}", did, e);
+            }
+        }
 
         tracing::info!(
             "Import complete. Success: {}, Errors: {}",
