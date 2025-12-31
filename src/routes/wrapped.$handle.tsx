@@ -480,7 +480,10 @@ function FloatingArtistBubble({
       {artist.image_url ? (
         <div className="relative w-full h-full overflow-clip rounded-full border-2 border-white/30 shadow-xl group-hover:shadow-2xl transition-shadow">
           <img
-            src={artist.image_url}
+            src={
+              artist.image_url &&
+              "https://yearinmusic-api.teal.fm" + artist.image_url
+            }
             alt={artist.name}
             className="w-full h-full object-cover"
           />
@@ -782,11 +785,10 @@ function WrappedPage() {
                 </div>
                 <div>
                   <p className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl text-white mb-3">
-                    artists discovered this year
+                    artists listened to this year
                   </p>
                   <p className="text-lg sm:text-xl text-white/60 leading-relaxed max-w-2xl mx-auto">
-                    You're always hunting for something fresh. These are the
-                    faces behind those new sounds.
+                    These are the faces behind those sounds.
                   </p>
                 </div>
               </div>
