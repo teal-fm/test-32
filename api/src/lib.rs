@@ -65,6 +65,15 @@ pub struct GlobalWrappedData {
     top_tracks: Vec<TopTrack>,
     #[serde(skip_serializing_if = "Option::is_none")]
     user_percentile: Option<GlobalUserPercentile>,
+    distribution: GlobalDistribution,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct GlobalDistribution {
+    minutes_percentiles: Vec<(i32, f64)>,
+    plays_percentiles: Vec<(i32, u32)>,
+    artists_percentiles: Vec<(i32, u32)>,
+    tracks_percentiles: Vec<(i32, u32)>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -426,6 +435,13 @@ async fn get_global_wrapped(
         unique_tracks: p.unique_tracks,
     });
 
+    let distribution = GlobalDistribution {
+        minutes_percentiles: stats.distribution.minutes_percentiles,
+        plays_percentiles: stats.distribution.plays_percentiles,
+        artists_percentiles: stats.distribution.artists_percentiles,
+        tracks_percentiles: stats.distribution.tracks_percentiles,
+    };
+
     let data = GlobalWrappedData {
         year,
         verified_minutes: stats.verified_minutes,
@@ -436,6 +452,7 @@ async fn get_global_wrapped(
         top_artists,
         top_tracks,
         user_percentile,
+        distribution,
     };
 
     Ok(Json(data))

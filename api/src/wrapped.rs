@@ -405,6 +405,15 @@ pub struct GlobalWrappedStats {
     pub top_artists: Vec<(String, u32, f64, Option<String>)>,
     pub top_tracks: Vec<((String, String), u32, TrackMetadata)>,
     pub user_percentile: Option<UserPercentile>,
+    pub distribution: Distribution,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct Distribution {
+    pub minutes_percentiles: Vec<(i32, f64)>,
+    pub plays_percentiles: Vec<(i32, u32)>,
+    pub artists_percentiles: Vec<(i32, u32)>,
+    pub tracks_percentiles: Vec<(i32, u32)>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -686,6 +695,104 @@ pub async fn calculate_global_wrapped_stats(
     })
     .collect();
 
+    let minutes_percentiles: Vec<(i32, f64)> = sqlx::query(
+        r#"
+        SELECT
+            FLOOR(100.0 * ROW_NUMBER() OVER (ORDER BY total_minutes) / COUNT(*) OVER ())::INTEGER as percentile,
+            total_minutes
+        FROM (
+            SELECT user_did, (SUM(COALESCE(duration_ms, 210000)) / 1000.0 / 60.0)::DOUBLE PRECISION as total_minutes
+            FROM user_plays
+            WHERE EXTRACT(YEAR FROM played_at) = $1
+            GROUP BY user_did
+        ) user_minutes
+        "#,
+    )
+    .bind(year_i32)
+    .fetch_all(pool)
+    .await?
+    .into_iter()
+    .map(|row| {
+        let percentile: i32 = row.get("percentile");
+        let minutes: f64 = row.get("total_minutes");
+        (percentile, minutes)
+    })
+    .collect();
+
+    let plays_percentiles: Vec<(i32, u32)> = sqlx::query(
+        r#"
+        SELECT
+            FLOOR(100.0 * ROW_NUMBER() OVER (ORDER BY total_plays) / COUNT(*) OVER ())::INTEGER as percentile,
+            total_plays
+        FROM (
+            SELECT user_did, COUNT(*) as total_plays
+            FROM user_plays
+            WHERE EXTRACT(YEAR FROM played_at) = $1
+            GROUP BY user_did
+        ) user_plays
+        "#,
+    )
+    .bind(year_i32)
+    .fetch_all(pool)
+    .await?
+    .into_iter()
+    .map(|row| {
+        let percentile: i32 = row.get("percentile");
+        let plays: i64 = row.get("total_plays");
+        (percentile, plays as u32)
+    })
+    .collect();
+
+    let artists_percentiles: Vec<(i32, u32)> = sqlx::query(
+        r#"
+        SELECT
+            FLOOR(100.0 * ROW_NUMBER() OVER (ORDER BY unique_artists) / COUNT(*) OVER ())::INTEGER as percentile,
+            unique_artists
+        FROM (
+            SELECT
+                user_did,
+                COUNT(DISTINCT artist->>'artistName') as unique_artists
+            FROM user_plays, jsonb_array_elements(artists) as artist
+            WHERE EXTRACT(YEAR FROM played_at) = $1
+            GROUP BY user_did
+        ) user_artists
+        "#,
+    )
+    .bind(year_i32)
+    .fetch_all(pool)
+    .await?
+    .into_iter()
+    .map(|row| {
+        let percentile: i32 = row.get("percentile");
+        let artists: i64 = row.get("unique_artists");
+        (percentile, artists as u32)
+    })
+    .collect();
+
+    let tracks_percentiles: Vec<(i32, u32)> = sqlx::query(
+        r#"
+        SELECT
+            FLOOR(100.0 * ROW_NUMBER() OVER (ORDER BY unique_tracks) / COUNT(*) OVER ())::INTEGER as percentile,
+            unique_tracks
+        FROM (
+            SELECT user_did, COUNT(DISTINCT track_name) as unique_tracks
+            FROM user_plays
+            WHERE EXTRACT(YEAR FROM played_at) = $1
+            GROUP BY user_did
+        ) user_tracks
+        "#,
+    )
+    .bind(year_i32)
+    .fetch_all(pool)
+    .await?
+    .into_iter()
+    .map(|row| {
+        let percentile: i32 = row.get("percentile");
+        let tracks: i64 = row.get("unique_tracks");
+        (percentile, tracks as u32)
+    })
+    .collect();
+
     Ok(GlobalWrappedStats {
         verified_minutes,
         total_users: total_users as u32,
@@ -695,6 +802,12 @@ pub async fn calculate_global_wrapped_stats(
         top_artists,
         top_tracks,
         user_percentile,
+        distribution: Distribution {
+            minutes_percentiles,
+            plays_percentiles,
+            artists_percentiles,
+            tracks_percentiles,
+        },
     })
 }
 
