@@ -8,7 +8,7 @@ import {
 import { createFileRoute } from "@tanstack/react-router";
 import { motion, useInView, useScroll, useTransform } from "framer-motion";
 import html2canvas from "html2canvas-pro";
-import { ChevronRight, ChevronRightIcon } from "lucide-react";
+import { ChevronRightIcon } from "lucide-react";
 import { Link } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 
@@ -2562,7 +2562,6 @@ function WrappedPage() {
             <Link
               to="/global-wrapped/$year"
               params={{ year: "2025" }}
-              
               className="mt-6 inline-block"
             >
               <p className="text-sm text-white/50  hover:text-white transition-colors duration-200">
