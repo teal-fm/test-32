@@ -337,7 +337,10 @@ function shouldSplitActivityGraph(
   const yearEnd = new Date(`${year}-12-31`);
 
   const firstActivityDate = new Date(
-    Math.min(...activityData.map((a) => new Date(a.date).getTime())),
+    Math.max(
+      Math.min(...activityData.map((a) => new Date(a.date).getTime())),
+      yearStart.getTime(),
+    ),
   );
 
   // Calculate days from first activity to end of year
@@ -1724,7 +1727,7 @@ function WrappedPage() {
 
                         // Calculate petal path
                         const nextAngle = angle + angleStep;
-                        const angleOffset = angleStep * 0.4;
+                        //const angleOffset = angleStep * 0.4;
 
                         const x1 = centerX + minRadius * Math.cos(angle);
                         const y1 = centerY + minRadius * Math.sin(angle);
