@@ -21,9 +21,43 @@ pub mod models;
 pub mod og_image;
 pub mod wrapped;
 
+async fn lookup_release_from_recording(
+    client: &reqwest::Client,
+    recording_mb_id: &str,
+) -> Result<Option<String>, reqwest::Error> {
+    let url = format!(
+        "https://musicbrainz.org/ws/2/recording/{}?fmt=json&inc=releases",
+        recording_mb_id
+    );
+
+    let response = client
+        .get(&url)
+        .header("User-Agent", "TealWrapped/1.0 (https://teal.fm)")
+        .send()
+        .await?;
+
+    if !response.status().is_success() {
+        return Ok(None);
+    }
+
+    let data: serde_json::Value = response.json().await?;
+    let releases = data.get("releases").and_then(|r| r.as_array());
+
+    if let Some(releases) = releases {
+        if let Some(first_release) = releases.first() {
+            if let Some(release_id) = first_release.get("id").and_then(|id| id.as_str()) {
+                return Ok(Some(release_id.to_string()));
+            }
+        }
+    }
+
+    Ok(None)
+}
+
 #[derive(Clone)]
 struct AppState {
     db: PgPool,
+    http_client: reqwest::Client,
     spotify_client_id: String,
     spotify_client_secret: String,
     fanart_api_key: String,
@@ -446,17 +480,34 @@ async fn get_global_wrapped(
         });
     }
 
-    let top_tracks = stats
+    let top_tracks: Vec<TopTrack> = stats
         .top_tracks
         .into_iter()
-        .map(|((title, artist), plays, metadata)| TopTrack {
-            title,
-            artist,
-            plays,
-            recording_mb_id: metadata.recording_mb_id,
-            release_name: metadata.release_name,
-            release_mb_id: metadata.release_mb_id,
+        .map(|((title, artist), plays, metadata)| async move {
+            let mut release_mb_id = metadata.release_mb_id;
+
+            if release_mb_id.is_none() {
+                if let Some(ref recording_mb_id) = metadata.recording_mb_id {
+                    match lookup_release_from_recording(&state.http_client, recording_mb_id).await {
+                        Ok(Some(id)) => release_mb_id = Some(id),
+                        Ok(None) => tracing::debug!("no release found for recording {}", recording_mb_id),
+                        Err(e) => tracing::warn!("failed to lookup release for {}: {}", recording_mb_id, e),
+                    }
+                }
+            }
+
+            TopTrack {
+                title,
+                artist,
+                plays,
+                recording_mb_id: metadata.recording_mb_id,
+                release_name: metadata.release_name,
+                release_mb_id,
+            }
         })
+        .collect::<Vec<_>>()
+        .await
+        .into_iter()
         .collect();
 
     let user_percentile = stats.user_percentile.map(|p| GlobalUserPercentile {
@@ -696,6 +747,7 @@ pub async fn run() {
 
     let state = AppState {
         db,
+        http_client: reqwest::Client::new(),
         spotify_client_id,
         spotify_client_secret,
         fanart_api_key,
