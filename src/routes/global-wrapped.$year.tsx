@@ -307,11 +307,11 @@ function PercentileChart({
         <p className="text-xs uppercase tracking-[0.3em] text-white/40 mb-6">
           {title}
         </p>
-        <div className="h-48 sm:h-56 bg-white/5 backdrop-blur-sm rounded-2xl p-4 border border-white/10">
+        <div className="h-48 sm:h-52 bg-white/5 backdrop-blur-sm rounded-2xl p-3 sm:p-4 border border-white/10">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart
               data={chartData}
-              margin={{ top: 10, right: 10, left: 10, bottom: 30 }}
+              margin={{ top: 8, right: 8, left: 8, bottom: 25 }}
             >
               <XAxis
                 dataKey="percentile"
