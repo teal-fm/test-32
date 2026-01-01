@@ -533,7 +533,8 @@ function WrappedPage() {
         const miniDoc = await miniDocResponse.json();
         const did = miniDoc.did;
 
-        const year = new Date().getFullYear();
+        // LMFAO
+        const year = 2025;
         const response = await fetch(
           `https://yearinmusic-api.teal.fm/api/wrapped/${year}?did=${did}`,
         );
