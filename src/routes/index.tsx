@@ -166,7 +166,7 @@ function Home() {
           <div className="w-full flex justify-center">
             <Link
               to="/global-wrapped/$year"
-              params={{ year: new Date().getFullYear().toString() }}
+              params={{ year: "2025" }}
               className="w-full text-sm text-center text-white/40 hover:text-white/60 transition-colors"
             >
               or, view global stats →
