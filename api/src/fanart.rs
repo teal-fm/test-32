@@ -52,6 +52,10 @@ pub async fn get_artist_image(
     spotify_client_secret: &str,
     fanart_api_key: &str,
 ) -> Result<Option<String>, anyhow::Error> {
+    // fm.teal.feed.play stores MusicBrainz IDs as `mbid:<uuid>`; fanart.tv, the image
+    // cache, and the image filenames all use the bare UUID.
+    let mb_id = mb_id.trim().strip_prefix("mbid:").unwrap_or(mb_id.trim());
+
     // Check cache first
     if let Some(cached_path) = check_cache(pool, mb_id).await? {
         tracing::debug!("using cached image for {}: {}", artist_name, cached_path);

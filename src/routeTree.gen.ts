@@ -12,6 +12,8 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as WrappedHandleRouteImport } from './routes/wrapped.$handle'
 import { Route as GlobalWrappedYearRouteImport } from './routes/global-wrapped.$year'
+import { Route as WrappedHandleScrollRouteImport } from './routes/wrapped.$handle_.scroll'
+import { Route as WrappedHandleRecapRouteImport } from './routes/wrapped.$handle_.recap'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -28,35 +30,69 @@ const GlobalWrappedYearRoute = GlobalWrappedYearRouteImport.update({
   path: '/global-wrapped/$year',
   getParentRoute: () => rootRouteImport,
 } as any)
+const WrappedHandleScrollRoute = WrappedHandleScrollRouteImport.update({
+  id: '/wrapped/$handle_/scroll',
+  path: '/wrapped/$handle/scroll',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const WrappedHandleRecapRoute = WrappedHandleRecapRouteImport.update({
+  id: '/wrapped/$handle_/recap',
+  path: '/wrapped/$handle/recap',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/global-wrapped/$year': typeof GlobalWrappedYearRoute
   '/wrapped/$handle': typeof WrappedHandleRoute
+  '/wrapped/$handle/recap': typeof WrappedHandleRecapRoute
+  '/wrapped/$handle/scroll': typeof WrappedHandleScrollRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/global-wrapped/$year': typeof GlobalWrappedYearRoute
   '/wrapped/$handle': typeof WrappedHandleRoute
+  '/wrapped/$handle/recap': typeof WrappedHandleRecapRoute
+  '/wrapped/$handle/scroll': typeof WrappedHandleScrollRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/global-wrapped/$year': typeof GlobalWrappedYearRoute
   '/wrapped/$handle': typeof WrappedHandleRoute
+  '/wrapped/$handle_/recap': typeof WrappedHandleRecapRoute
+  '/wrapped/$handle_/scroll': typeof WrappedHandleScrollRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/global-wrapped/$year' | '/wrapped/$handle'
+  fullPaths:
+    | '/'
+    | '/global-wrapped/$year'
+    | '/wrapped/$handle'
+    | '/wrapped/$handle/recap'
+    | '/wrapped/$handle/scroll'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/global-wrapped/$year' | '/wrapped/$handle'
-  id: '__root__' | '/' | '/global-wrapped/$year' | '/wrapped/$handle'
+  to:
+    | '/'
+    | '/global-wrapped/$year'
+    | '/wrapped/$handle'
+    | '/wrapped/$handle/recap'
+    | '/wrapped/$handle/scroll'
+  id:
+    | '__root__'
+    | '/'
+    | '/global-wrapped/$year'
+    | '/wrapped/$handle'
+    | '/wrapped/$handle_/recap'
+    | '/wrapped/$handle_/scroll'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   GlobalWrappedYearRoute: typeof GlobalWrappedYearRoute
   WrappedHandleRoute: typeof WrappedHandleRoute
+  WrappedHandleRecapRoute: typeof WrappedHandleRecapRoute
+  WrappedHandleScrollRoute: typeof WrappedHandleScrollRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -82,6 +118,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof GlobalWrappedYearRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/wrapped/$handle_/scroll': {
+      id: '/wrapped/$handle_/scroll'
+      path: '/wrapped/$handle/scroll'
+      fullPath: '/wrapped/$handle/scroll'
+      preLoaderRoute: typeof WrappedHandleScrollRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/wrapped/$handle_/recap': {
+      id: '/wrapped/$handle_/recap'
+      path: '/wrapped/$handle/recap'
+      fullPath: '/wrapped/$handle/recap'
+      preLoaderRoute: typeof WrappedHandleRecapRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -89,6 +139,8 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   GlobalWrappedYearRoute: GlobalWrappedYearRoute,
   WrappedHandleRoute: WrappedHandleRoute,
+  WrappedHandleRecapRoute: WrappedHandleRecapRoute,
+  WrappedHandleScrollRoute: WrappedHandleScrollRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
