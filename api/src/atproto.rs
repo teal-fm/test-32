@@ -1,10 +1,72 @@
 use anyhow::{Context, Result};
-use lexicon::fm_teal::alpha::feed::play::Play;
 use repo_stream::{DiskBuilder, Driver, DriverBuilder};
 use serde::{Deserialize, Serialize};
+use std::collections::HashSet;
 use std::io::Cursor;
 
-const PLAY_COLLECTION: &str = "fm.teal.alpha.feed.play";
+/// Current play collection.
+const PLAY_COLLECTION: &str = "fm.teal.feed.play";
+/// Pre-migration play collection. Older plays (and repos that never migrated) live here.
+const LEGACY_PLAY_COLLECTION: &str = "fm.teal.alpha.feed.play";
+/// Every collection we ingest plays from, newest first. When the same play exists in
+/// more than one (e.g. it was copied during migration), the first one wins.
+const PLAY_COLLECTIONS: [&str; 2] = [PLAY_COLLECTION, LEGACY_PLAY_COLLECTION];
+
+/// The fields we read from a play record. `fm.teal.feed.play` and
+/// `fm.teal.alpha.feed.play` share these names and shapes, so one struct decodes both;
+/// anything else in the record is ignored.
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct PlayRecord {
+    track_name: String,
+    #[serde(default)]
+    artists: Option<Vec<PlayArtist>>,
+    #[serde(default)]
+    artist_names: Option<Vec<String>>,
+    #[serde(default)]
+    artist_mb_ids: Option<Vec<String>>,
+    #[serde(default)]
+    duration: Option<i64>,
+    #[serde(default)]
+    played_time: Option<String>,
+    #[serde(default)]
+    recording_mb_id: Option<String>,
+    #[serde(default)]
+    track_mb_id: Option<String>,
+    #[serde(default)]
+    release_mb_id: Option<String>,
+    #[serde(default)]
+    release_name: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct PlayArtist {
+    artist_name: String,
+    #[serde(default)]
+    artist_mb_id: Option<String>,
+}
+
+/// `fm.teal.feed.play` formats MusicBrainz IDs as `mbid:<uuid>`; the alpha lexicon used
+/// bare UUIDs. Store bare UUIDs so both match each other and work in MusicBrainz,
+/// Cover Art Archive, and fanart.tv URLs.
+fn normalize_mbid(id: &str) -> Option<String> {
+    let id = id.trim();
+    let id = id.strip_prefix("mbid:").unwrap_or(id);
+    if id.is_empty() {
+        None
+    } else {
+        Some(id.to_string())
+    }
+}
+
+/// Which play collection a repo path (`<collection>/<rkey>`) belongs to, if any.
+fn play_collection_of(path: &str) -> Option<&'static str> {
+    PLAY_COLLECTIONS.into_iter().find(|collection| {
+        path.strip_prefix(collection)
+            .is_some_and(|rest| rest.starts_with('/'))
+    })
+}
 
 #[derive(Debug, Deserialize)]
 struct BlobRef {
@@ -42,6 +104,22 @@ struct RepoListResponse {
 }
 
 pub async fn fetch_all_dids() -> Result<Vec<String>> {
+    let mut seen = HashSet::new();
+    let mut all_dids = Vec::new();
+
+    for collection in PLAY_COLLECTIONS {
+        for did in fetch_dids_for_collection(collection).await? {
+            if seen.insert(did.clone()) {
+                all_dids.push(did);
+            }
+        }
+    }
+
+    tracing::info!("{} unique DIDs across all play collections", all_dids.len());
+    Ok(all_dids)
+}
+
+async fn fetch_dids_for_collection(collection: &str) -> Result<Vec<String>> {
     let mut all_dids = Vec::new();
     let mut cursor: Option<String> = None;
     let base_url =
@@ -49,19 +127,24 @@ pub async fn fetch_all_dids() -> Result<Vec<String>> {
 
     loop {
         let url = if let Some(c) = &cursor {
-            format!("{}?collection={}&cursor={}", base_url, PLAY_COLLECTION, c)
+            format!("{}?collection={}&cursor={}", base_url, collection, c)
         } else {
-            format!("{}?collection={}", base_url, PLAY_COLLECTION)
+            format!("{}?collection={}", base_url, collection)
         };
 
-        tracing::info!("fetching DIDs from relay (cursor: {:?})", cursor);
+        tracing::info!("fetching {} DIDs from relay (cursor: {:?})", collection, cursor);
         let response = reqwest::get(&url).await?;
         let list: RepoListResponse = response.json().await?;
 
         let count = list.repos.len();
         all_dids.extend(list.repos.into_iter().map(|r| r.did));
 
-        tracing::info!("fetched {} DIDs (total: {})", count, all_dids.len());
+        tracing::info!(
+            "fetched {} {} DIDs (total: {})",
+            count,
+            collection,
+            all_dids.len()
+        );
 
         if list.cursor.is_none() || count == 0 {
             break;
@@ -103,35 +186,99 @@ pub async fn fetch_profile_picture(did: &str) -> Result<Option<String>> {
     Ok(None)
 }
 
-fn extract_artists_from_play(play: &Play) -> (Vec<String>, Option<Vec<String>>) {
-    // Handle new format with artists array
-    if let Some(artists) = play.artists.as_ref() {
-        let names: Vec<String> = artists
-            .iter()
-            .map(|artist| artist.artist_name.to_string())
-            .collect();
+fn extract_artists_from_play(play: &PlayRecord) -> (Vec<String>, Option<Vec<String>>) {
+    // Prefer the structured artists array
+    if let Some(artists) = play.artists.as_ref().filter(|a| !a.is_empty()) {
+        let names: Vec<String> = artists.iter().map(|a| a.artist_name.clone()).collect();
         let mbids: Vec<String> = artists
             .iter()
-            .filter_map(|artist| artist.artist_mb_id.as_ref().map(|id| id.to_string()))
+            .filter_map(|a| a.artist_mb_id.as_deref().and_then(normalize_mbid))
             .collect();
         let mbids_opt = if mbids.is_empty() { None } else { Some(mbids) };
         return (names, mbids_opt);
     }
 
-    // Fallback to old format with separate artist_names and artist_mb_ids arrays
-    let names = play
-        .artist_names
-        .as_ref()
-        .map(|names| names.iter().map(|n| n.to_string()).collect())
-        .unwrap_or_default();
-
+    // Fallback to the deprecated parallel artistNames / artistMbIds arrays
+    let names = play.artist_names.clone().unwrap_or_default();
     let mbids = play
         .artist_mb_ids
         .as_ref()
-        .map(|ids| ids.iter().map(|id| id.to_string()).collect::<Vec<_>>())
-        .filter(|ids: &Vec<String>| !ids.is_empty());
+        .map(|ids| ids.iter().filter_map(|id| normalize_mbid(id)).collect::<Vec<_>>())
+        .filter(|ids| !ids.is_empty());
 
     (names, mbids)
+}
+
+/// Decode one repo block into a scrobble if it's a play record from any play collection.
+fn scrobble_from_block(did: &str, path: &str, block: &[u8]) -> Option<ScrobbleRecord> {
+    play_collection_of(path)?;
+    let play = match serde_ipld_dagcbor::from_slice::<PlayRecord>(block) {
+        Ok(play) => play,
+        Err(e) => {
+            tracing::debug!("skipping undecodable play record {}: {}", path, e);
+            return None;
+        }
+    };
+    let (artists, artist_mb_ids) = extract_artists_from_play(&play);
+
+    Some(ScrobbleRecord {
+        uri: format!("at://{}/{}", did, path),
+        cid: String::new(), // CID not available from this API
+        track_name: play.track_name,
+        artists,
+        played_time: play.played_time,
+        duration: play.duration,
+        recording_mb_id: play.recording_mb_id.as_deref().and_then(normalize_mbid),
+        track_mb_id: play.track_mb_id.as_deref().and_then(normalize_mbid),
+        release_mb_id: play.release_mb_id.as_deref().and_then(normalize_mbid),
+        release_name: play.release_name,
+        artist_mb_ids,
+    })
+}
+
+/// A repo can hold the same listen in both collections (copied across during the
+/// lexicon migration). Drop a legacy-collection play when the current collection has
+/// the same track at the same time, so it isn't counted twice. Plays within a single
+/// collection are left alone.
+fn dedupe_scrobbles(scrobbles: Vec<ScrobbleRecord>) -> Vec<ScrobbleRecord> {
+    let collection = |s: &ScrobbleRecord| {
+        play_collection_of(s.uri.splitn(4, '/').nth(3).unwrap_or_default())
+    };
+    let key = |s: &ScrobbleRecord| {
+        s.played_time.as_deref().map(|played| {
+            let played = chrono::DateTime::parse_from_rfc3339(played)
+                .map(|t| t.timestamp().to_string())
+                .unwrap_or_else(|_| played.to_string());
+            (s.track_name.to_lowercase(), played)
+        })
+    };
+
+    let current: HashSet<_> = scrobbles
+        .iter()
+        .filter(|s| collection(s) == Some(PLAY_COLLECTION))
+        .filter_map(|s| key(s))
+        .collect();
+    if current.is_empty() {
+        return scrobbles;
+    }
+
+    let before = scrobbles.len();
+    let kept: Vec<_> = scrobbles
+        .into_iter()
+        .filter(|s| {
+            collection(s) != Some(LEGACY_PLAY_COLLECTION)
+                || key(s).is_none_or(|k| !current.contains(&k))
+        })
+        .collect();
+
+    if kept.len() != before {
+        tracing::info!(
+            "dropped {} legacy plays already present in {}",
+            before - kept.len(),
+            PLAY_COLLECTION
+        );
+    }
+    kept
 }
 
 /// Cached DID document to avoid duplicate requests
@@ -242,31 +389,9 @@ pub async fn fetch_scrobbles(did: &str, _year: u32) -> Result<Vec<ScrobbleRecord
         Driver::Memory(_commit, mut driver) => {
             // Process records in chunks
             while let Some(chunk) = driver.next_chunk(256).await? {
-                for (rkey, block_data) in chunk {
-                    // Check if this is a play record by rkey prefix
-                    if rkey.starts_with(PLAY_COLLECTION) {
-                        // Deserialize the Play record
-                        if let Ok(play) = serde_ipld_dagcbor::from_slice::<Play>(&block_data) {
-                            let (artists, artist_mb_ids) = extract_artists_from_play(&play);
-                            let played_time = play.played_time.as_ref().map(|dt| dt.to_string());
-
-                            scrobbles.push(ScrobbleRecord {
-                                uri: format!("at://{}/{}", did, rkey),
-                                cid: String::new(), // CID not available from this API
-                                track_name: play.track_name.to_string(),
-                                artists,
-                                played_time,
-                                duration: play.duration,
-                                recording_mb_id: play
-                                    .recording_mb_id
-                                    .as_ref()
-                                    .map(|s| s.to_string()),
-                                track_mb_id: play.track_mb_id.as_ref().map(|s| s.to_string()),
-                                release_mb_id: play.release_mb_id.as_ref().map(|s| s.to_string()),
-                                release_name: play.release_name.as_ref().map(|s| s.to_string()),
-                                artist_mb_ids,
-                            });
-                        }
+                for (path, block_data) in chunk {
+                    if let Some(scrobble) = scrobble_from_block(did, &path, &block_data) {
+                        scrobbles.push(scrobble);
                     }
                 }
             }
@@ -285,29 +410,9 @@ pub async fn fetch_scrobbles(did: &str, _year: u32) -> Result<Vec<ScrobbleRecord
 
             // Process records in chunks from disk
             while let Some(chunk) = driver.next_chunk(256).await? {
-                for (rkey, block_data) in chunk {
-                    if rkey.starts_with(PLAY_COLLECTION) {
-                        if let Ok(play) = serde_ipld_dagcbor::from_slice::<Play>(&block_data) {
-                            let (artists, artist_mb_ids) = extract_artists_from_play(&play);
-                            let played_time = play.played_time.as_ref().map(|dt| dt.to_string());
-
-                            scrobbles.push(ScrobbleRecord {
-                                uri: format!("at://{}/{}", did, rkey),
-                                cid: String::new(),
-                                track_name: play.track_name.to_string(),
-                                artists,
-                                played_time,
-                                duration: play.duration,
-                                recording_mb_id: play
-                                    .recording_mb_id
-                                    .as_ref()
-                                    .map(|s| s.to_string()),
-                                track_mb_id: play.track_mb_id.as_ref().map(|s| s.to_string()),
-                                release_mb_id: play.release_mb_id.as_ref().map(|s| s.to_string()),
-                                release_name: play.release_name.as_ref().map(|s| s.to_string()),
-                                artist_mb_ids,
-                            });
-                        }
+                for (path, block_data) in chunk {
+                    if let Some(scrobble) = scrobble_from_block(did, &path, &block_data) {
+                        scrobbles.push(scrobble);
                     }
                 }
             }
@@ -319,6 +424,7 @@ pub async fn fetch_scrobbles(did: &str, _year: u32) -> Result<Vec<ScrobbleRecord
         }
     }
 
+    let scrobbles = dedupe_scrobbles(scrobbles);
     tracing::info!("found {} play records", scrobbles.len());
 
     Ok(scrobbles)
@@ -359,4 +465,74 @@ pub async fn resolve_handle_to_did(handle: &str) -> Result<String> {
 
     let doc: MiniDocResponse = response.json().await?;
     Ok(doc.did)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn cbor(value: serde_json::Value) -> Vec<u8> {
+        serde_ipld_dagcbor::to_vec(&value).unwrap()
+    }
+
+    #[test]
+    fn decodes_plays_from_both_collections() {
+        let new = cbor(serde_json::json!({
+            "$type": "fm.teal.feed.play",
+            "trackName": "Angel Music",
+            "artists": [{ "artistName": "Ninajirachi", "artistMbId": "mbid:aaaa" }],
+            "releaseMbId": "mbid:bbbb",
+            "playedTime": "2026-11-26T00:10:15Z",
+            "musicServiceUri": "https://music.apple.com",
+            "duration": 201
+        }));
+        let old = cbor(serde_json::json!({
+            "$type": "fm.teal.alpha.feed.play",
+            "trackName": "Old Song",
+            "artistNames": ["Someone"],
+            "artistMbIds": ["cccc"],
+            "playedTime": "2025-03-01T12:00:00Z"
+        }));
+
+        let a = scrobble_from_block("did:x", "fm.teal.feed.play/3abc", &new).unwrap();
+        assert_eq!(a.artists, vec!["Ninajirachi"]);
+        assert_eq!(a.artist_mb_ids, Some(vec!["aaaa".to_string()]));
+        assert_eq!(a.release_mb_id.as_deref(), Some("bbbb"));
+        assert_eq!(a.duration, Some(201));
+
+        let b = scrobble_from_block("did:x", "fm.teal.alpha.feed.play/3def", &old).unwrap();
+        assert_eq!(b.artists, vec!["Someone"]);
+        assert_eq!(b.artist_mb_ids, Some(vec!["cccc".to_string()]));
+
+        assert!(scrobble_from_block("did:x", "app.bsky.feed.post/3x", &new).is_none());
+        assert!(scrobble_from_block("did:x", "fm.teal.feed.playlist/3x", &new).is_none());
+    }
+
+    #[test]
+    fn dedupes_migrated_plays_preferring_new_collection() {
+        let mk = |path: &str, time: &str| ScrobbleRecord {
+            uri: format!("at://did:x/{}", path),
+            cid: String::new(),
+            track_name: "Song".into(),
+            artists: vec!["A".into()],
+            played_time: Some(time.into()),
+            duration: None,
+            recording_mb_id: None,
+            track_mb_id: None,
+            release_mb_id: None,
+            release_name: None,
+            artist_mb_ids: None,
+        };
+        let out = dedupe_scrobbles(vec![
+            mk("fm.teal.alpha.feed.play/1", "2026-01-01T00:00:00.000Z"),
+            mk("fm.teal.feed.play/1", "2026-01-01T00:00:00Z"),
+            mk("fm.teal.alpha.feed.play/2", "2026-01-02T00:00:00Z"),
+            // a double-scrobble inside one collection is not ours to drop
+            mk("fm.teal.feed.play/3", "2026-01-03T00:00:00Z"),
+            mk("fm.teal.feed.play/4", "2026-01-03T00:00:00Z"),
+        ]);
+        assert_eq!(out.len(), 4);
+        assert!(out.iter().any(|s| s.uri.ends_with("fm.teal.feed.play/1")));
+        assert!(!out.iter().any(|s| s.uri.ends_with("fm.teal.alpha.feed.play/1")));
+    }
 }

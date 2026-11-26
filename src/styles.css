@@ -1,71 +1,101 @@
-/* mustika flower font at /fonts/Mustika Flower.otf */
+@import "tailwindcss";
+
 @font-face {
   font-family: "Mustika Flower";
   src: url("/fonts/Mustika Flower.otf") format("opentype");
   font-weight: normal;
+  font-display: swap;
 }
 
-@import "tailwindcss";
-
 @theme {
+  --font-sans: "Bricolage Grotesque", ui-sans-serif, system-ui, sans-serif;
   --font-hand: "Mustika Flower", cursive;
+  --ease-pop: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-out-quint: cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 :root {
-  /* Design System Colors */
-  --bg-primary: #0a0a0a;
-  --bg-secondary: #1a1a2e;
-  --surface-glass: rgba(255, 255, 255, 0.08);
-  --border-glass: rgba(255, 255, 255, 0.12);
+  /* slide palette: every slide sets --bg / --ink / --pop / --soft */
+  --bg: #10b3a3;
+  --ink: #032b27;
+  --pop: #fff36b;
+  --soft: color-mix(in oklab, var(--ink) 14%, var(--bg));
+  color-scheme: light;
+}
 
-  /* Accent Gradients */
-  --gradient-cyan-blue: linear-gradient(135deg, #00d9ff, #0066ff);
-  --gradient-magenta-purple: linear-gradient(135deg, #ff0099, #9900ff);
-  --gradient-teal-green: linear-gradient(135deg, #00ffaa, #00ff66);
-  --gradient-coral-orange: linear-gradient(135deg, #ff6b6b, #ff9500);
+html {
+  -webkit-text-size-adjust: 100%;
 }
 
 body {
-  @apply m-0;
-  font-family:
-    "DM Sans",
-    -apple-system,
-    BlinkMacSystemFont,
-    "Segoe UI",
-    "Roboto",
-    sans-serif;
+  margin: 0;
+  font-family: var(--font-sans);
+  font-optical-sizing: auto;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background: #0a0a0a;
-  color: white;
+  background: var(--bg);
+  color: var(--ink);
 }
 
-/* firefox-specific fix for letter-spacing in canvas rendering */
+::selection {
+  background: var(--ink);
+  color: var(--bg);
+}
+
+/* display type: tight, wide-ish, heavy */
+.display {
+  font-weight: 800;
+  font-variation-settings: "opsz" 96;
+  letter-spacing: -0.04em;
+  line-height: 0.86;
+}
+
+.condensed {
+  font-stretch: 75%;
+  font-variation-settings: "opsz" 96, "wdth" 75;
+}
+
+.tnum {
+  font-variant-numeric: tabular-nums;
+}
+
+/* print grain over the colour fields */
+.grain::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.16;
+  mix-blend-mode: multiply;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 .55 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* sticker: white die-cut border on photos and covers */
+.sticker {
+  border: 0.35em solid #fff;
+  box-shadow: 0 0.5em 1.4em -0.4em color-mix(in oklab, var(--ink) 55%, transparent);
+}
+
+.no-scrollbar {
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* firefox letter-spacing fix for canvas rendering */
 @-moz-document url-prefix() {
   .share-card {
-    letter-spacing: 0.025em !important;
+    letter-spacing: 0 !important;
   }
 }
 
-code {
-  font-family:
-    "SF Mono", "JetBrains Mono", source-code-pro, Menlo, Monaco, Consolas,
-    monospace;
-}
-
-/* Glassmorphism Card */
-.glass-card {
-  background: rgba(255, 255, 255, 0.08);
-  backdrop-filter: blur(20px) saturate(180%);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
-  transition: all 0.4s cubic-bezier(0.33, 1, 0.68, 1);
-}
-
-.glass-card:hover {
-  background: rgba(255, 255, 255, 0.12);
-  box-shadow:
-    0 12px 48px rgba(0, 0, 0, 0.3),
-    0 0 24px rgba(0, 217, 255, 0.1);
-  transform: translateY(-2px);
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+  }
 }
